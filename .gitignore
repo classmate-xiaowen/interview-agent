@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Node / frontend
+node_modules/
+dist/
+*.log
+
+# Data & secrets
+*.db
+*.sqlite
+*.sqlite3
+chroma_data/
+.test_chroma/
+.test_speak_agent.db
+.env
+
+# Agent / editor
+.codebuddy/
+.vscode/
+.idea/
