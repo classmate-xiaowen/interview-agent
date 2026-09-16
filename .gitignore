@@ -20,6 +20,6 @@ chroma_data/
 .env
 
 # Agent / editor
-.codebuddy/
+# .codebuddy/
 .vscode/
 .idea/
