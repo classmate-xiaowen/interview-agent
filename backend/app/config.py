@@ -6,8 +6,8 @@ class Settings(BaseSettings):
     # 对话 / Guardrail 大模型（DeepSeek 兼容 OpenAI 协议）
     llm_base_url: str = "https://api.deepseek.com/v1"
     llm_api_key: str = ""
-    chat_model: str = "v4flash"
-    guardrail_model: str = "v4flash"
+    chat_model: str = "deepseek-flash"
+    guardrail_model: str = "deepseek-flash"
     # 向量 Embedding（DeepSeek 不提供 embedding，默认走 OpenAI；可换成任意兼容服务）
     embed_base_url: str = "https://api.openai.com/v1"
     embed_api_key: str = ""

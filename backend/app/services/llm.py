@@ -2,8 +2,11 @@ import instructor
 from openai import AsyncOpenAI
 from app.config import settings
 
+# DeepSeek 默认开启 thinking 模式，不支持 instructor 默认的 tool_choice；
+# 改用 JSON 模式（response_format=json_object）做结构化输出，跨模型更稳。
 _client = instructor.from_openai(
-    AsyncOpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    AsyncOpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key),
+    mode=instructor.Mode.JSON,
 )
 
 

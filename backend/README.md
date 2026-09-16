@@ -10,14 +10,35 @@
 - **护栏 + Tripwire**：`input_guardrail` / `output_guardrail`，输入空/注入即中断，输出评分越界即拒。
 
 ## 启动
+
 ```bash
+# 1. 进入后端目录（必须在 backend/ 下，否则找不到 app 包与 .env）
 cd backend
-python -m venv .venv && .venv\Scripts\activate        # Windows
-# source .venv/bin/activate                            # Linux/macOS
+
+# 2. 创建并激活虚拟环境（可选但推荐）
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+# source .venv/bin/activate   # Linux/macOS
+
+# 3. 安装依赖
 pip install -r requirements.txt
-cp .env.example .env          # 填入 LLM_API_KEY（DeepSeek）/ EMBED_API_KEY（OpenAI）
-uvicorn app.main:app --reload --port 8000
+
+# 4. 准备环境变量
+cp .env.example .env
+#   然后编辑 .env，至少填入：
+#     LLM_API_KEY=sk-...        # DeepSeek 密钥（对话 / 点评用）
+#     EMBED_API_KEY=sk-...      # OpenAI 密钥（知识库向量化用；DeepSeek 不提供 embedding）
+#     CHAT_MODEL=deepseek-flash # DeepSeek 模型 ID（v4flash 不是合法 ID）
+
+# 5. 启动（务必用 python -m uvicorn；裸 uvicorn 可能不在 PATH）
+python -m uvicorn app.main:app --reload --port 8000
+
+# 6. 验证
+curl http://127.0.0.1:8000/health     # 期望 {"status":"ok"}
 ```
+
+> 知识库「新增记录」依赖 Embedding，若 `EMBED_API_KEY` 为空会报错；对话与点评只依赖 `LLM_API_KEY`（DeepSeek）。
+> 修改 `.env` 后需重启 uvicorn（`--reload` 仅监听 `.py`，不重载 `.env`）。
 
 ## 接口速览
 - `POST /api/knowledge/records`        录入面试记录（自动向量化）
