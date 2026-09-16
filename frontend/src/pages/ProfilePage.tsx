@@ -39,7 +39,10 @@ export default function ProfilePage() {
   return (
     <div className="page">
       <div className="page-head">
-        <h2>我的画像</h2>
+        <div>
+          <div className="kicker">Candidate Profile</div>
+          <h2>我的画像</h2>
+        </div>
       </div>
       {msg && <div className="hint">{msg}</div>}
 

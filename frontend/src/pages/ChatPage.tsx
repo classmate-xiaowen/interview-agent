@@ -101,7 +101,7 @@ export default function ChatPage() {
     <div className="page chat">
       <div className="chat-head">
         <div className="row">
-          <label>Coach style:</label>
+          <label>教练风格</label>
           <select value={style} onChange={(e) => setStyle(e.target.value as InterviewerStyle)}>
             {(['pressure', 'gentle', 'deep'] as InterviewerStyle[]).map((s) => (
               <option key={s} value={s}>
@@ -116,11 +116,11 @@ export default function ChatPage() {
           />
           {!sessionId ? (
             <button onClick={start} disabled={streaming}>
-              Start
+              开始面试
             </button>
           ) : (
             <button onClick={end} className="danger">
-              End
+              结束面试
             </button>
           )}
         </div>
@@ -132,6 +132,21 @@ export default function ChatPage() {
       {error && <div className="hint error">{error}</div>}
 
       <div className="messages">
+        {messages.length === 0 && !streaming && (
+          <div className="empty-state">
+            <div className="orb">🎯</div>
+            <h4>准备好接受模拟面试了吗？</h4>
+            <p>
+              选择一种教练风格并点击「开始面试」—— Agent 会结合你的知识库与画像进行提问，
+              每轮回答后即时给出评分与改进建议。
+            </p>
+            <div className="chips">
+              <span className="chip">STAR 法则作答</span>
+              <span className="chip">先结论后细节</span>
+              <span className="chip">量化你的成果</span>
+            </div>
+          </div>
+        )}
         {messages.map((m, i) => {
           const isStreamingLast = streaming && i === lastIdx && m.role === 'assistant'
           return (
@@ -185,7 +200,15 @@ function EvaluationCard({ eval: ev }: { eval: NonNullable<Msg['turn']>['evaluati
   if (!ev) return null
   return (
     <div className="eval">
-      <div className="eval-score">评分：{ev.score}/100</div>
+      <div className="eval-head">
+        <div className="eval-score">
+          {ev.score}
+          <small> / 100</small>
+        </div>
+        <span className="eval-tag">
+          {ev.score >= 80 ? '优秀' : ev.score >= 60 ? '良好' : '待改进'}
+        </span>
+      </div>
       {ev.covered_points.length > 0 && (
         <div>
           <b>覆盖要点：</b>

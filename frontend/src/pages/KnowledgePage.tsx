@@ -84,7 +84,10 @@ export default function KnowledgePage() {
   return (
     <div className="page">
       <div className="page-head">
-        <h2>知识库</h2>
+        <div>
+          <div className="kicker">Knowledge Base</div>
+          <h2>知识库</h2>
+        </div>
         <div className="filter">
           <input
             placeholder="按公司筛选"
@@ -99,12 +102,12 @@ export default function KnowledgePage() {
 
       <div className="grid">
         <section className="card">
-          <h3>Add record</h3>
+          <h3>添加记录</h3>
           <div className="form">
             <div className="field full">
-              <label>Question *</label>
+              <label>问题 *</label>
               <textarea
-                placeholder="e.g. Tell me about the most challenging project you've shipped"
+                placeholder="例：讲一下你做过的最有挑战的项目"
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 rows={3}
@@ -215,7 +218,11 @@ export default function KnowledgePage() {
                       {m}
                     </span>
                   ))}
-                  {r.result && <span className="tag">{r.result}</span>}
+                  {r.result && (
+                    <span className={`tag ${r.result}`}>
+                      {r.result === 'passed' ? '通过' : r.result === 'failed' ? '未通过' : '待定'}
+                    </span>
+                  )}
                 </div>
               </div>
               <button className="danger" onClick={() => handleDelete(r.id)}>

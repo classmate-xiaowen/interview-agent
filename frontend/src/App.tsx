@@ -11,20 +11,25 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">🎯 Speak Agent</div>
+        <div className="brand">
+          <span className="brand-mark">🎯</span>
+          <span>
+            Speak Agent
+            <br />
+            <small>Interview Coach</small>
+          </span>
+        </div>
         <nav>
-          <button className={tab === 'chat' ? 'active' : ''} onClick={() => setTab('chat')}>
-            Coach
-          </button>
-          <button
-            className={tab === 'knowledge' ? 'active' : ''}
-            onClick={() => setTab('knowledge')}
-          >
-            Knowledge
-          </button>
-          <button className={tab === 'profile' ? 'active' : ''} onClick={() => setTab('profile')}>
-            Profile
-          </button>
+          {(['chat', 'knowledge', 'profile'] as Tab[]).map((t) => (
+            <button
+              key={t}
+              className={tab === t ? 'active' : ''}
+              aria-current={tab === t ? 'page' : undefined}
+              onClick={() => setTab(t)}
+            >
+              {t === 'chat' ? 'Coach' : t === 'knowledge' ? 'Knowledge' : 'Profile'}
+            </button>
+          ))}
         </nav>
       </header>
       <main className="content">
