@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { api, streamMessage } from '../api'
 import type { InterviewConfig, InterviewerStyle, InterviewTurn } from '../types'
 
@@ -22,7 +24,8 @@ export default function ChatPage() {
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState('')
-  const draftRef = useRef('')
+  const abortRef = useRef<AbortController | null>(null)
+  const userStoppedRef = useRef(false)
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -38,62 +41,81 @@ export default function ChatPage() {
     try {
       const r = await api.createSession(cfg)
       setSessionId(r.session_id)
-      setMessages([{ role: 'assistant', text: r.question, turn: r }])
+      setMessages([])
+      await runStream(r.session_id, '', true)
     } catch (e) {
       setError((e as Error).message)
     }
   }
 
   function end() {
+    abortRef.current?.abort()
     setSessionId(null)
     setMessages([])
-    draftRef.current = ''
+  }
+
+  function stop() {
+    userStoppedRef.current = true
+    abortRef.current?.abort()
+  }
+
+  async function runStream(sessionId: string, message: string, kickoff: boolean) {
+    setStreaming(true)
+    setError('')
+    userStoppedRef.current = false
+    const controller = new AbortController()
+    abortRef.current = controller
+    try {
+      await streamMessage(
+        sessionId,
+        message,
+        {
+          signal: controller.signal,
+          onToken: (t) => {
+            setMessages((m) => {
+              const c = [...m]
+              const last = c[c.length - 1]
+              if (last && last.role === 'assistant') c[c.length - 1] = { ...last, text: last.text + t }
+              else c.push({ role: 'assistant', text: t })
+              return c
+            })
+          },
+          onTurn: (turn) => {
+            setMessages((m) => {
+              const c = [...m]
+              let i = -1
+              for (let k = c.length - 1; k >= 0; k--) {
+                if (c[k].role === 'assistant') {
+                  i = k
+                  break
+                }
+              }
+              const text = i >= 0 ? c[i].text : turn.question
+              if (i >= 0) c[i] = { ...c[i], turn }
+              else c.push({ role: 'assistant', text, turn })
+              return c
+            })
+          },
+          onError: (msg) => setError(msg),
+        },
+        kickoff,
+      )
+    } catch (e) {
+      const err = e as Error
+      // 用户主动「停止」不提示；其余（含后端无响应超时）给出明确错误信息。
+      if (err.name !== 'AbortError' || !userStoppedRef.current) setError(err.message)
+    } finally {
+      setStreaming(false)
+      abortRef.current = null
+    }
   }
 
   async function send() {
     if (!sessionId || !input.trim() || streaming) return
     const userText = input.trim()
     setInput('')
-    setError('')
     setMessages((m) => [...m, { role: 'user', text: userText }])
-    draftRef.current = ''
-    setStreaming(true)
-    try {
-      await streamMessage(
-        sessionId,
-        userText,
-        (t) => {
-          draftRef.current += t
-          setMessages((m) => {
-            const c = [...m]
-            const last = c[c.length - 1]
-            if (last?.role === 'assistant') last.text = draftRef.current
-            else c.push({ role: 'assistant', text: draftRef.current })
-            return [...c]
-          })
-        },
-        (turn) => {
-          setMessages((m) => {
-            const c = [...m]
-            let i = -1
-            for (let k = c.length - 1; k >= 0; k--) {
-              if (c[k].role === 'assistant') {
-                i = k
-                break
-              }
-            }
-            const text = i >= 0 ? c[i].text : turn.question
-            if (i >= 0) c[i] = { role: 'assistant', text, turn }
-            else c.push({ role: 'assistant', text, turn })
-            return [...c]
-          })
-        },
-      )
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setStreaming(false)
-    }
+    await runStream(sessionId, userText, false)
   }
 
   const lastIdx = messages.length - 1
@@ -116,11 +138,11 @@ export default function ChatPage() {
           />
           {!sessionId ? (
             <button onClick={start} disabled={streaming}>
-              开始面试
+              开始训练
             </button>
           ) : (
             <button onClick={end} className="danger">
-              结束面试
+              结束训练
             </button>
           )}
         </div>
@@ -135,9 +157,9 @@ export default function ChatPage() {
         {messages.length === 0 && !streaming && (
           <div className="empty-state">
             <div className="orb">🎯</div>
-            <h4>准备好接受模拟面试了吗？</h4>
+            <h4>准备好接受模拟训练了吗？</h4>
             <p>
-              选择一种教练风格并点击「开始面试」—— Agent 会结合你的知识库与画像进行提问，
+              选择一种教练风格并点击「开始训练」—— Agent 会结合你的知识库与画像进行提问，
               每轮回答后即时给出评分与改进建议。
             </p>
             <div className="chips">
@@ -153,21 +175,39 @@ export default function ChatPage() {
             <div key={i} className={`msg ${m.role}`}>
               <div className="avatar">{m.role === 'assistant' ? '🎯' : '🧑'}</div>
               <div className={`bubble ${m.role}`}>
-                <div className="text">
-                  {m.text}
-                  {isStreamingLast && <span className="caret" />}
-                </div>
-                {m.turn?.evaluation && <EvaluationCard eval={m.turn.evaluation} />}
-                {m.turn?.references?.length ? (
-                  <div className="refs">
-                    <span className="refs-label">引用来源：</span>
-                    {m.turn.references.map((r) => (
-                      <span key={r.record_id} className="ref">
-                        📎 {r.snippet}
-                      </span>
-                    ))}
+                {m.role === 'assistant' ? (
+                  <>
+                    <div className="md">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          a: ({ node, ...props }) => (
+                            <a {...props} target="_blank" rel="noreferrer" />
+                          ),
+                        }}
+                      >
+                        {m.text}
+                      </ReactMarkdown>
+                      {isStreamingLast && <span className="caret" />}
+                    </div>
+                    {m.turn?.evaluation && <EvaluationCard eval={m.turn.evaluation} />}
+                    {m.turn?.references?.length ? (
+                      <div className="refs">
+                        <span className="refs-label">引用来源：</span>
+                        {m.turn.references.map((r) => (
+                          <span key={r.record_id} className="ref">
+                            📎 {r.snippet}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="text">
+                    {m.text}
+                    {isStreamingLast && <span className="caret" />}
                   </div>
-                ) : null}
+                )}
               </div>
             </div>
           )
@@ -188,6 +228,11 @@ export default function ChatPage() {
             }
           }}
         />
+        {streaming && (
+          <button onClick={stop} className="danger" title="中断当前生成">
+            停止
+          </button>
+        )}
         <button onClick={send} disabled={!sessionId || streaming || !input.trim()}>
           {streaming ? '生成中…' : '发送'}
         </button>

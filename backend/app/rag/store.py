@@ -17,6 +17,16 @@ async def add_chunks(chunks: list[dict]):
     )
 
 
+async def delete_chunks_by_record(record_id: str):
+    """删除某个题目对应的全部向量分块，避免删除记录后留下孤儿向量。"""
+    if not record_id:
+        return
+    await asyncio.to_thread(
+        _collection.delete,
+        where={"record_id": record_id},
+    )
+
+
 async def query_chunks(text: str, n: int = 5, filter_meta: dict | None = None) -> list[dict]:
     if not text or not text.strip():
         return []

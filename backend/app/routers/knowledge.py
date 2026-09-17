@@ -1,8 +1,16 @@
 from fastapi import APIRouter
-from app.schemas.knowledge import InterviewRecordCreate, InterviewRecordRead
+from app.schemas.knowledge import (
+    InterviewRecordCreate, InterviewRecordRead, ParseRequest, ParsedQuestionBank,
+)
 from app.services import knowledge_service as ks
 
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
+
+
+@router.post("/parse", response_model=ParsedQuestionBank)
+async def parse(req: ParseRequest):
+    """AI 解析：把任意原始文本拆成结构化面试题（仅内容字段）。"""
+    return await ks.parse_bank(req.text)
 
 
 @router.post("/records", response_model=InterviewRecordRead)

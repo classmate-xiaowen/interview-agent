@@ -44,6 +44,13 @@ export const api = {
       body: JSON.stringify(items),
     }).then((r) => json<{ imported: number }>(r))
   },
+  parseBank(text: string) {
+    return fetch(`${BASE}/api/knowledge/parse`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    }).then((r) => json<ParsedQuestionBank>(r))
+  },
   getProfile() {
     return fetch(`${BASE}/api/profile`).then((r) => json<UserProfile>(r))
   },
@@ -59,47 +66,109 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config),
-    }).then((r) => json<{ session_id: string } & InterviewTurn>(r))
+    }).then((r) => json<{ session_id: string }>(r))
   },
 }
 
+export interface StreamHandlers {
+  onToken: (text: string) => void
+  onTurn: (turn: InterviewTurn) => void
+  onError?: (message: string) => void
+  onDone?: () => void
+  signal?: AbortSignal
+}
+
 /**
- * 消费 /api/chat/message 的 SSE 流。
- * 后端逐个推送 `data: {"type":"token","text":...}`，末尾推送 `event: turn\ndata: <InterviewTurn JSON>`。
+ * 消费 /api/chat/message 的 SSE 流（text/event-stream）。
+ *
+ * 后端协议（每帧以 `\n\n` 分隔）：
+ *   data: {"type":"token","text":...}              逐段问题正文
+ *   data: {"type":"turn","turn":{...InterviewTurn}} 完整结构化结果（评分/引用）
+ *   data: {"type":"done"}                           正常结束
+ *   event: error\n data: {"type":"error","message"}  异常中断
+ *
+ * 采用 fetch + ReadableStream（而非 EventSource），因为需要 POST 请求体。
+ * 支持 AbortSignal：调用方中断时直接抛出 AbortError。
+ *
+ * 超时保护：SSE 长连接本身没有超时，若后端 worker 崩溃 / 无响应，连接会「半死不活」
+ * 地一直挂起（reader.read 永远阻塞）。因此内部再套一层 AbortController，超时即中止。
  */
+const STREAM_TIMEOUT_MS = 60_000
+
 export async function streamMessage(
   sessionId: string,
   message: string,
-  onToken: (text: string) => void,
-  onTurn: (turn: InterviewTurn) => void,
+  handlers: StreamHandlers,
+  kickoff = false,
 ): Promise<void> {
-  const res = await fetch(`${BASE}/api/chat/message`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId, message }),
-  })
-  if (!res.body) throw new Error('无响应流')
+  // 内部控制器：合并「用户主动中断」与「超时保护」，避免后端无响应时前端永久挂起。
+  const controller = new AbortController()
+  const timer = setTimeout(
+    () => controller.abort(new Error(`连接超时：后端未在 ${STREAM_TIMEOUT_MS / 1000}s 内返回数据，请检查服务是否可用`)),
+    STREAM_TIMEOUT_MS,
+  )
+  const onExternalAbort = () => controller.abort(handlers.signal?.reason as Error | undefined)
+  if (handlers.signal) {
+    if (handlers.signal.aborted) controller.abort(handlers.signal.reason as Error | undefined)
+    else handlers.signal.addEventListener('abort', onExternalAbort, { once: true })
+  }
+
+  try {
+    const res = await fetch(`${BASE}/api/chat/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, message, kickoff }),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(`请求失败 ${res.status}: ${text}`)
+    }
+    if (!res.body) throw new Error('无响应流')
+
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
+
+  const dispatch = (frame: string) => {
+    let event = ''
+    const dataLines: string[] = []
+    for (const line of frame.split('\n')) {
+      if (line.startsWith('event:')) event = line.slice(6).trim()
+      else if (line.startsWith('data:')) dataLines.push(line.slice(5).replace(/^ /, ''))
+    }
+    if (dataLines.length === 0) return
+    const data = dataLines.join('\n')
+    let obj: any
+    try {
+      obj = JSON.parse(data)
+    } catch {
+      return
+    }
+    if (event === 'error' || obj?.type === 'error') {
+      handlers.onError?.(obj?.message || 'stream error')
+      return
+    }
+    if (obj.type === 'token') handlers.onToken(String(obj.text ?? ''))
+    else if (obj.type === 'turn') handlers.onTurn(obj.turn as InterviewTurn)
+    else if (obj.type === 'done') handlers.onDone?.()
+  }
+
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
     buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
-    for (const raw of lines) {
-      const line = raw.trim()
-      if (!line || line.startsWith('event:')) continue
-      if (!line.startsWith('data:')) continue
-      const payload = line.slice(5).trim()
-      try {
-        const obj = JSON.parse(payload)
-        if (obj && obj.type === 'token') onToken(String(obj.text))
-        else onTurn(obj as InterviewTurn)
-      } catch {
-        /* 忽略非 JSON 行 */
-      }
+    let idx: number
+    while ((idx = buffer.indexOf('\n\n')) !== -1) {
+      const frame = buffer.slice(0, idx)
+      buffer = buffer.slice(idx + 2)
+      if (frame.trim()) dispatch(frame)
     }
+  }
+  // 连接关闭后冲刷剩余缓冲
+  if (buffer.trim()) dispatch(buffer)
+  } finally {
+    clearTimeout(timer)
+    if (handlers.signal) handlers.signal.removeEventListener('abort', onExternalAbort)
   }
 }

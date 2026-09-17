@@ -9,6 +9,10 @@ class State(str, Enum):
     SUMMARY = "summary"
 
 
+# 与 InterviewTurn.question_type 的 Literal 取值保持一致，供 harness 标注类型用。
+QuestionType = Literal["behavioral", "technical", "pressure", "follow_up"]
+
+
 class RecordRef(BaseModel):
     record_id: str
     snippet: str

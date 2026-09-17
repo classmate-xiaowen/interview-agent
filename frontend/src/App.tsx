@@ -1,41 +1,43 @@
-import { useState } from 'react'
+import { Link, NavLink, Route, Routes, Navigate } from 'react-router-dom'
 import KnowledgePage from './pages/KnowledgePage'
 import ChatPage from './pages/ChatPage'
 import ProfilePage from './pages/ProfilePage'
 import './index.css'
 
-type Tab = 'chat' | 'knowledge' | 'profile'
+const tabs = [
+  { to: '/chat', label: 'Coach' },
+  { to: '/knowledge', label: 'Knowledge' },
+  { to: '/profile', label: 'Profile' },
+]
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('chat')
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">
+        <Link to="/chat" className="brand">
           <span className="brand-mark">🎯</span>
           <span>
             Speak Agent
             <br />
             <small>Interview Coach</small>
           </span>
-        </div>
+        </Link>
         <nav>
-          {(['chat', 'knowledge', 'profile'] as Tab[]).map((t) => (
-            <button
-              key={t}
-              className={tab === t ? 'active' : ''}
-              aria-current={tab === t ? 'page' : undefined}
-              onClick={() => setTab(t)}
-            >
-              {t === 'chat' ? 'Coach' : t === 'knowledge' ? 'Knowledge' : 'Profile'}
-            </button>
+          {tabs.map((t) => (
+            <NavLink key={t.to} to={t.to} className={({ isActive }) => (isActive ? 'active' : '')}>
+              {t.label}
+            </NavLink>
           ))}
         </nav>
       </header>
       <main className="content">
-        {tab === 'chat' && <ChatPage />}
-        {tab === 'knowledge' && <KnowledgePage />}
-        {tab === 'profile' && <ProfilePage />}
+        <Routes>
+          <Route path="/" element={<Navigate to="/chat" replace />} />
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="*" element={<Navigate to="/chat" replace />} />
+        </Routes>
       </main>
     </div>
   )

@@ -19,6 +19,19 @@ export interface InterviewRecordRead extends InterviewRecordCreate {
   created_at: string
 }
 
+/** AI 解析出的单道题（仅内容字段，不含元数据） */
+export interface ParsedQuestion {
+  question: string
+  my_answer?: string | null
+  reference_answer?: string | null
+  note?: string | null
+}
+
+/** AI 题库解析结果 */
+export interface ParsedQuestionBank {
+  questions: ParsedQuestion[]
+}
+
 export interface RecordRef {
   record_id: string
   snippet: string
