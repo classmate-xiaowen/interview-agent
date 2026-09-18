@@ -65,6 +65,9 @@ export interface InterviewTurn {
 export interface InterviewConfig {
   target_company?: string | null
   target_role?: string | null
+  target_jd?: string | null
+  salary?: string | null
+  rounds?: number | null
   interviewer_style: InterviewerStyle
 }
 
@@ -84,6 +87,9 @@ export interface ChatSessionMeta {
   interviewer_style: InterviewerStyle
   target_company: string | null
   target_role: string | null
+  target_jd: string | null
+  salary: string | null
+  rounds: number | null
   created_at: string
   updated_at: string
 }

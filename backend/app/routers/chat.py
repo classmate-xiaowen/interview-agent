@@ -29,6 +29,9 @@ async def _get_or_load_session(sid: str | None) -> InterviewSession | None:
     config = InterviewConfig(
         target_company=row.target_company,
         target_role=row.target_role,
+        target_jd=row.target_jd,
+        salary=row.salary,
+        rounds=row.rounds,
         interviewer_style=row.interviewer_style,
     )
     sess = InterviewSession(config, profile)
@@ -60,6 +63,9 @@ async def list_sessions():
             "interviewer_style": r.interviewer_style,
             "target_company": r.target_company,
             "target_role": r.target_role,
+            "target_jd": r.target_jd,
+            "salary": r.salary,
+            "rounds": r.rounds,
             "created_at": r.created_at,
             "updated_at": r.updated_at,
         }

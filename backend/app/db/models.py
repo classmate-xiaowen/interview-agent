@@ -41,6 +41,9 @@ class ChatSession(Base):
     interviewer_style: Mapped[str] = mapped_column(String, default="gentle")
     target_company: Mapped[str | None] = mapped_column(String, nullable=True)
     target_role: Mapped[str | None] = mapped_column(String, nullable=True)
+    target_jd: Mapped[str | None] = mapped_column(Text, nullable=True)
+    salary: Mapped[str | None] = mapped_column(String, nullable=True)
+    rounds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.datetime.now().isoformat())
     updated_at: Mapped[str] = mapped_column(String, default=lambda: datetime.datetime.now().isoformat())
 

@@ -47,4 +47,7 @@ class InterviewTurn(BaseModel):
 class InterviewConfig(BaseModel):
     target_company: Optional[str] = None
     target_role: Optional[str] = None
+    target_jd: Optional[str] = None      # 岗位 JD / 招聘要求（提示词初始化上下文）
+    salary: Optional[str] = None         # 薪资范围（提示词初始化上下文）
+    rounds: Optional[int] = None         # 第几轮面试（提示词上下文，非硬性停止条件）
     interviewer_style: Literal["pressure", "gentle", "deep"] = "gentle"

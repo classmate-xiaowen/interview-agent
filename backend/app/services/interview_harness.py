@@ -71,9 +71,23 @@ class InterviewSession:
         独立检索得到，模型端的 references 本就被覆盖，JSON 指令纯属多余且有害。
         """
         p = self.profile
-        ctx = (f"候选人：技能={p.skills}，年限={p.years}，目标岗位={p.target_role}，"
-               f"目标公司={','.join(p.target_companies)}，薄弱点={p.weaknesses}，"
+        c = self.config
+        ctx = (f"候选人：技能={p.skills}，年限={p.years}，目标岗位={p.target_role or c.target_role or '未指定'}，"
+               f"目标公司={','.join(p.target_companies) or c.target_company or '未指定'}，薄弱点={p.weaknesses}，"
                f"市场环境={p.market_context}")
+        # 本场面试初始化上下文（岗位 / JD / 薪资 / 轮次）：让面试官"懂"这场面试的背景。
+        if c.target_role:
+            ctx += f"\n本场目标岗位：{c.target_role}"
+        if c.target_company:
+            ctx += f"\n本场目标公司：{c.target_company}"
+        if c.target_jd:
+            ctx += f"\n岗位JD（招聘要求，请据此设计针对性、可深挖的问题）：{c.target_jd}"
+        if c.salary:
+            ctx += f"\n薪资范围：{c.salary}（据此把握问题的深度与候选人定位）"
+        if c.rounds:
+            ctx += (f"\n面试轮次：第 {c.rounds} 轮。"
+                    f"请据此把握本场面试的整体节奏与考察深度——"
+                    f"该轮次应聚焦的核心能力请优先考察，不必重复前序轮次已覆盖的通用内容。")
         if json_mode:
             return (f"{_STYLE_PROMPT[self.config.interviewer_style]}\n{ctx}\n"
                     f"严格按给定 JSON Schema 回复，必须包含 references（可空数组）。")
@@ -100,7 +114,9 @@ class InterviewSession:
             stream = llm.stream_text(
                 self._system(),
                 "请提出第一道面试问题。只输出【一个】问题本身，"
-                "不要附带多个问题或候选清单，等候选人回答后再继续。可使用 Markdown 的加粗强调。",
+                "不要附带多个问题或候选清单，等候选人回答后再继续。可使用 Markdown 的加粗强调。"
+                + (f"\n注意：这是候选人第 {self.config.rounds} 轮面试，请据此设定首题的深度与侧重点。"
+                   if self.config.rounds else ""),
                 history=self.history,
             )
         else:

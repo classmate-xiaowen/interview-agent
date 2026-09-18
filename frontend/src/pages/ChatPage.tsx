@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api, streamMessage } from '../api'
-import { App as AntApp, Button, Input, Modal, Popconfirm } from 'antd'
+import { App as AntApp, Button, Input, InputNumber, Modal, Popconfirm } from 'antd'
 import { DeleteOutlined, EditOutlined } from '@ant-design/icons'
 import type {
   ChatHistoryMessage,
@@ -37,6 +37,11 @@ function fmtDate(iso: string): string {
 export default function ChatPage() {
   const [style, setStyle] = useState<InterviewerStyle>('gentle')
   const [targetCompany, setTargetCompany] = useState('')
+  const [targetRole, setTargetRole] = useState('')
+  const [jd, setJd] = useState('')
+  const [salary, setSalary] = useState('')
+  const [rounds, setRounds] = useState<number | null>(null)
+  const [setupOpen, setSetupOpen] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
@@ -75,11 +80,24 @@ export default function ChatPage() {
     }
   }
 
-  async function start() {
+  function openSetup() {
     setError('')
+    setSetupOpen(true)
+  }
+
+  async function confirmStart() {
+    if (rounds !== null && (rounds < 1 || rounds > 20)) {
+      message.warning('面试轮次需在 1-20 之间')
+      return
+    }
+    setSetupOpen(false)
     const cfg: InterviewConfig = {
       interviewer_style: style,
       target_company: targetCompany || null,
+      target_role: targetRole || null,
+      target_jd: jd || null,
+      salary: salary || null,
+      rounds: rounds,
     }
     try {
       const r = await api.createSession(cfg)
@@ -101,6 +119,10 @@ export default function ChatPage() {
       if (s) {
         setStyle(s.interviewer_style)
         setTargetCompany(s.target_company || '')
+        setTargetRole(s.target_role || '')
+        setJd(s.target_jd || '')
+        setSalary(s.salary || '')
+        setRounds(s.rounds ?? null)
       }
       setSessionId(id)
       setMessages(msgs.map((m) => ({ role: m.role, text: m.content, turn: m.turn ?? undefined })))
@@ -224,7 +246,7 @@ export default function ChatPage() {
           <span className="sidebar-title">训练会话</span>
           {sessions.length > 0 && <span className="sidebar-count">{sessions.length}</span>}
         </div>
-        <button className="session-new" onClick={start} disabled={streaming}>
+        <button className="session-new" onClick={openSetup} disabled={streaming}>
           ＋ 新建会话
         </button>
         <div className="session-list">
@@ -243,6 +265,7 @@ export default function ChatPage() {
                 <div className="session-title">{s.title}</div>
                 <div className="session-meta">
                   <span className="session-style">{STYLE_LABEL[s.interviewer_style]}</span>
+                  {s.target_role && <span>{s.target_role}</span>}
                   <span>{s.target_company || '通用'}</span>
                   <span className="session-time">{fmtDate(s.updated_at)}</span>
                 </div>
@@ -292,32 +315,12 @@ export default function ChatPage() {
             <span className="status-text">{sessionId ? '训练进行中' : '等待开始'}</span>
           </div>
           <div className="chat-controls">
-            <div className="seg" role="group" aria-label="教练风格">
-              {(['pressure', 'gentle', 'deep'] as InterviewerStyle[]).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className={style === s ? 'on' : ''}
-                  onClick={() => setStyle(s)}
-                >
-                  {STYLE_LABEL[s]}
-                </button>
-              ))}
-            </div>
-            <input
-              className="company-input"
-              placeholder="目标公司（可选）"
-              value={targetCompany}
-              onChange={(e) => setTargetCompany(e.target.value)}
-            />
-            {!sessionId ? (
-              <button onClick={start} disabled={streaming}>
-                开始训练
-              </button>
-            ) : (
+            {sessionId ? (
               <button onClick={end} className="danger">
                 结束训练
               </button>
+            ) : (
+              <span className="chat-hint">点击左侧「＋ 新建会话」开始模拟训练</span>
             )}
           </div>
         </header>
@@ -448,6 +451,76 @@ export default function ChatPage() {
           placeholder="请输入会话标题"
           autoFocus
         />
+      </Modal>
+
+      <Modal
+        title="开始模拟训练"
+        open={setupOpen}
+        onOk={confirmStart}
+        onCancel={() => setSetupOpen(false)}
+        okText="开始训练"
+        cancelText="取消"
+        destroyOnClose
+        maskClosable={false}
+      >
+        <div className="setup-form">
+          <label>教练风格</label>
+          <div className="seg" role="group" aria-label="教练风格">
+            {(['pressure', 'gentle', 'deep'] as InterviewerStyle[]).map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={style === s ? 'on' : ''}
+                onClick={() => setStyle(s)}
+              >
+                {STYLE_LABEL[s]}
+              </button>
+            ))}
+          </div>
+
+          <label>目标公司（可选）</label>
+          <Input
+            value={targetCompany}
+            onChange={(e) => setTargetCompany(e.target.value)}
+            placeholder="如：字节跳动"
+            maxLength={40}
+          />
+
+          <label>目标岗位（可选）</label>
+          <Input
+            value={targetRole}
+            onChange={(e) => setTargetRole(e.target.value)}
+            placeholder="如：后端开发工程师"
+            maxLength={40}
+          />
+
+          <label>岗位 JD / 招聘要求（可选）</label>
+          <Input.TextArea
+            value={jd}
+            onChange={(e) => setJd(e.target.value)}
+            rows={4}
+            maxLength={2000}
+            placeholder="粘贴岗位描述或核心要求，面试官会据此设计针对性问题"
+          />
+
+          <label>薪资范围（可选）</label>
+          <Input
+            value={salary}
+            onChange={(e) => setSalary(e.target.value)}
+            placeholder="如：25-35K"
+            maxLength={30}
+          />
+
+          <label>第几轮面试（可选）</label>
+          <InputNumber
+            min={1}
+            max={20}
+            value={rounds}
+            onChange={(v) => setRounds(v ?? null)}
+            style={{ width: '100%' }}
+            placeholder="如：1"
+          />
+        </div>
       </Modal>
     </div>
   )

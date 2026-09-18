@@ -19,6 +19,9 @@ async def create_session_row(config: InterviewConfig) -> ChatSession:
         interviewer_style=style,
         target_company=config.target_company,
         target_role=config.target_role,
+        target_jd=config.target_jd,
+        salary=config.salary,
+        rounds=config.rounds,
     )
     async with SessionLocal() as s:
         s.add(row)
