@@ -69,3 +69,22 @@ export interface UserProfile {
   weaknesses: string
   market_context: string
 }
+
+/** 会话列表项（侧栏展示） */
+export interface ChatSessionMeta {
+  session_id: string
+  title: string
+  interviewer_style: InterviewerStyle
+  target_company: string | null
+  target_role: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** 会话历史消息 */
+export interface ChatHistoryMessage {
+  role: 'user' | 'assistant'
+  content: string
+  turn: InterviewTurn | null
+  created_at: string
+}

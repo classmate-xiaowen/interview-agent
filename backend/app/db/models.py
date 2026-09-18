@@ -32,3 +32,24 @@ class UserProfileRow(Base):
     target_companies: Mapped[list] = mapped_column(JSON, default=list)
     weaknesses: Mapped[str] = mapped_column(Text, default="")
     market_context: Mapped[str] = mapped_column(Text, default="")
+
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    title: Mapped[str] = mapped_column(String, default="新会话")
+    interviewer_style: Mapped[str] = mapped_column(String, default="gentle")
+    target_company: Mapped[str | None] = mapped_column(String, nullable=True)
+    target_role: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.datetime.now().isoformat())
+    updated_at: Mapped[str] = mapped_column(String, default=lambda: datetime.datetime.now().isoformat())
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(String, index=True)
+    role: Mapped[str] = mapped_column(String)  # 'user' | 'assistant'
+    content: Mapped[str] = mapped_column(Text)
+    turn_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # InterviewTurn JSON (assistant only)
+    created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.datetime.now().isoformat())

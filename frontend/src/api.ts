@@ -1,8 +1,11 @@
 import type {
+  ChatHistoryMessage,
+  ChatSessionMeta,
   InterviewConfig,
   InterviewRecordCreate,
   InterviewRecordRead,
   InterviewTurn,
+  ParsedQuestionBank,
   UserProfile,
 } from './types'
 
@@ -67,6 +70,26 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config),
     }).then((r) => json<{ session_id: string }>(r))
+  },
+  listSessions() {
+    return fetch(`${BASE}/api/chat/sessions`).then((r) => json<ChatSessionMeta[]>(r))
+  },
+  getSessionMessages(id: string) {
+    return fetch(`${BASE}/api/chat/sessions/${id}/messages`).then((r) =>
+      json<ChatHistoryMessage[]>(r),
+    )
+  },
+  renameSession(id: string, title: string) {
+    return fetch(`${BASE}/api/chat/sessions/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    }).then((r) => json<{ ok: boolean }>(r))
+  },
+  deleteSession(id: string) {
+    return fetch(`${BASE}/api/chat/sessions/${id}`, { method: 'DELETE' }).then((r) =>
+      json<{ deleted: boolean }>(r),
+    )
   },
 }
 

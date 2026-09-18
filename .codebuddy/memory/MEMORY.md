@@ -17,6 +17,20 @@
 - 参考的开源项目：interview-prep-ai(直接对标, FastAPI+LangChain+Pydantic+SSE+确定性追问)、LangGraph(StateGraph+Checkpoint)、OpenAI Agents SDK Guardrails、awesome-harness-engineering、RAG-in-Production/Stages-of-RAG(混合检索+重排序+评估)。
 - RAG：MVP 用 Chroma 向量+元数据过滤；演进路径=混合检索(BM25+向量+RRF)+rerank+评估(ragas)。
 
+## 对话历史持久化（已实现，2026-09-18）
+- **背景**：原 Agent 对话历史未持久化（纯内存态 `SESSIONS` + `InterviewSession.history`），刷新/重启/新建会话后丢失，无历史列表。
+- **文档**：已补 FR-3.5「会话持久化与历史回看」；§6 增加 `ChatSession`/`ChatMessage` 表；§7 增加 `GET /api/chat/sessions`、`GET /api/chat/sessions/{id}/messages`。
+- **实现**：
+  - 后端 `db/models.py` 新增 `ChatSession`+`ChatMessage`；`services/chat_service.py` 负责 CRUD；`routers/chat.py` 改为落库 + 列表/历史接口 + `_get_or_load_session` 从 DB 重建会话（恢复 history 与 questions_asked）。
+  - `services/llm.py` 的 `chat_structured`/`stream_text` 增加 `history` 参数；`interview_harness.py` 将 `self.history` 注入所有 LLM 调用，使多轮/续聊有上下文。
+  - 前端 `ChatPage.tsx` 改为两栏（侧栏会话列表 + 主对话区），支持新建/点击历史回看续聊/重命名/删除；`api.ts`/`types.ts` 增加 `listSessions`/`getSessionMessages`/`renameSession`/`deleteSession` 与类型；`index.css` 增加侧栏布局与 hover 操作按钮。后端额外 `PATCH /api/chat/sessions/{id}`（重命名）、`DELETE /api/chat/sessions/{id}`（删除会话及全部消息，并清理内存缓存）。
+- 注意：会话状态机 `state` 重建时默认 ASKING（未持久化 SUMMARY 终态），续聊已结束会话会当作新一轮继续——MVP 可接受。
+
+## 前端技术栈与 UI 约定（2026-09-18）
+- 已引入 `antd`（v5）+ `@ant-design/icons`，并在 `main.tsx` 用 `ConfigProvider(theme.darkAlgorithm)` + `App` 包裹（项目为深色 UI，变量在 `index.css`）—— antd 组件必须配深色算法。
+- 弹窗/确认/轻提示优先用 antd：`Modal`+`Input` 做重命名输入、`Popconfirm` 做删除气泡确认、`message` 经 `App.useApp()` 获取（勿用静态 `message`，否则缺 context 警告）。
+- 会话列表项的重命名/删除即采用上述 antd 组件（见 `frontend/src/pages/ChatPage.tsx`）。
+
 ## 题库导入功能设计决策（2026-09-17，已批准实现）
 - **方向**：用户粘贴任意杂乱文本/Markdown，AI 负责拆题、纠偏、整理答案；不要求用户手写固定 Markdown 格式。
 - **AI 抽取范围**：只抽内容字段（question / my_answer / reference_answer / note），不猜元数据。

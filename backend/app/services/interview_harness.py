@@ -52,19 +52,32 @@ class InterviewSession:
         self.questions_asked = 0
         self.history: list[dict] = []
 
-    def _system(self) -> str:
+    def _system(self, json_mode: bool = False) -> str:
         """拼装面试官的"系统提示词"（system prompt）。
 
         把面试官风格（高压/温和/深挖，见 _STYLE_PROMPT）与候选人档案上下文
-        合并成一段固定前置指令，要求模型严格按 JSON Schema 回复且必须带 references。
-        每次调用 LLM 都会带上它，保证面试风格与个性化一致。
+        合并成一段固定前置指令。
+
+        - json_mode=True：用于结构化 EVAL 调用（chat_structured），要求模型
+          严格按 JSON Schema 回复且必须带 references。
+        - json_mode=False（默认）：用于流式出题/总结（stream_text），只输出
+          问题或点评的纯文本（Markdown 允许），禁止输出 JSON。
+
+        注意：流式路径若带 JSON 指令，模型会原样吐出
+        `{"question": "...", "references": []}` 文本，被当作 token 直接渲染到
+        前端，造成「页面显示 raw JSON」的 bug。且最终 references 由 _retrieve()
+        独立检索得到，模型端的 references 本就被覆盖，JSON 指令纯属多余且有害。
         """
         p = self.profile
         ctx = (f"候选人：技能={p.skills}，年限={p.years}，目标岗位={p.target_role}，"
                f"目标公司={','.join(p.target_companies)}，薄弱点={p.weaknesses}，"
                f"市场环境={p.market_context}")
+        if json_mode:
+            return (f"{_STYLE_PROMPT[self.config.interviewer_style]}\n{ctx}\n"
+                    f"严格按给定 JSON Schema 回复，必须包含 references（可空数组）。")
         return (f"{_STYLE_PROMPT[self.config.interviewer_style]}\n{ctx}\n"
-                f"严格按给定 JSON Schema 回复，必须包含 references（可空数组）。")
+                f"仅输出面试问题或点评的纯文本（可用 Markdown 的加粗/列表组织），"
+                f"不要输出 JSON。")
 
     async def stream_answer(self, user_msg: str, kickoff: bool = False) -> AsyncIterator[dict]:
         """流式驱动一轮对话，逐 token 推送问题文本，末尾推送完整 InterviewTurn。
@@ -83,13 +96,15 @@ class InterviewSession:
             stream = llm.stream_text(
                 self._system(),
                 "请提出第一道面试问题（仅输出问题文本，可用 Markdown 的加粗/列表组织提示）。",
+                history=self.history,
             )
         else:
             await guardrails.input_guardrail(user_msg)
             eval_turn = await llm.chat_structured(
-                self._system(),
+                self._system(json_mode=True),
                 f"EVAL 用户回答：{user_msg}\n请对该回答评分并决定是否需要追问（ask_followup）。",
                 InterviewTurn,
+                history=self.history,
             )
             evaluation = eval_turn.evaluation or Evaluation(score=60)
             self.questions_asked += 1
@@ -100,6 +115,7 @@ class InterviewSession:
                 stream = llm.stream_text(
                     self._system(),
                     "面试结束，请输出总体点评与改进行动建议（Markdown 文本，可含标题与列表）。",
+                    history=self.history,
                 )
             elif ask_followup and eval_turn.followup_question:
                 qtype = "follow_up"
@@ -109,6 +125,7 @@ class InterviewSession:
                 stream = llm.stream_text(
                     self._system(),
                     "请提出下一道新的面试问题（仅输出问题文本，可使用 Markdown 的列表/加粗组织提示）。",
+                    history=self.history,
                 )
 
         collected: list[str] = []

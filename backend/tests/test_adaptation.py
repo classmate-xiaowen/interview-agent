@@ -75,3 +75,31 @@ def test_direction_hint_boom_ai():
     h = direction_hint(32, 35, "大厂", "AI 岗位扩招，行情回暖", "", "算法", 4)
     assert "偏热" in h
     assert "算法" in h
+
+
+def test_role_offset_default_is_backend():
+    # 未传 role 时按参考岗(后端, 偏移 0)，与显式传后端一致
+    assert salary_to_baseline(25, 30, "不限") == salary_to_baseline(25, 30, "不限", "后端")
+
+
+def test_role_offset_unknown_falls_back_to_backend():
+    # 未匹配角色按偏移 0 处理
+    assert salary_to_baseline(25, 30, "不限", "嵌入式") == salary_to_baseline(25, 30, "不限", "后端")
+
+
+def test_role_offset_algorithm_lower_than_backend():
+    # 同薪资(25-30k)下，算法(高薪岗)应比后端难度更低
+    assert salary_to_baseline(25, 30, "不限", "算法") < salary_to_baseline(25, 30, "不限", "后端")
+
+
+def test_role_offset_test_higher_than_backend():
+    # 同薪资(20-25k)下，测试(低薪岗)应比后端难度更高
+    assert salary_to_baseline(20, 25, "不限", "测试") > salary_to_baseline(20, 25, "不限", "后端")
+
+
+def test_role_offset_ordering():
+    # 同薪资(20-25k)下难度排序：算法 < 后端 < 测试
+    lo = salary_to_baseline(20, 25, "不限", "算法")
+    mid = salary_to_baseline(20, 25, "不限", "后端")
+    hi = salary_to_baseline(20, 25, "不限", "测试")
+    assert lo < mid < hi

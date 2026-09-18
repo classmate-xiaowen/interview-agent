@@ -9,6 +9,8 @@
   中厂 22.5~49w。说明「同薪资下大厂对应更低经验层级」——大厂/外企总包虚高，故难度主要靠
   薪资分档决定，档位偏置仅作小幅修正，避免把数字顶到专家级。
 - 招聘行情（脉脉 2026）：结构性回暖、AI 岗暴涨、传统互联网降温分化，行情关键词据此扩展。
+- 分岗位薪资（CSDN MCP 社区 2026 年报综合）：算法/大模型同级别薪资明显高于普通开发，测试/运维偏低。
+  故引入角色维度——同薪资对不同岗意味不同资深度（算法同薪更初级、测试同薪更资深），见 ROLE_PAY_OFFSET。
 
 薪资单位：用户输入为「千/月」（如 25 表示 25k/月）。难度档位先按月薪分档（7k 起步 ~ 35k 封顶
 → 1-5），再整体 ×DIFFICULTY_SCALE(0.65) 下调一档，最后叠加档位偏置；方向提示里附「×1.2 ≈ 万元/年」仅作直观参考。
@@ -24,6 +26,15 @@ TIER_BIAS: dict[str, int] = {
     "中厂": 0,
     "创业": -1,
     "不限": 0,
+}
+
+# 角色薪资相对偏移（千/月）：高薪岗同薪资=更初级（负偏移），低薪岗同薪资=更资深（正偏移）。
+# 以「后端/普通开发」为参考(0)，偏移值依据 CSDN MCP 社区 2026 年报分岗位薪资中心差估算（v1，可调）。
+# 算法/AI/大模型 同薪约低 1 档、数据次之；测试/运维 同薪约高 1 档。
+ROLE_PAY_OFFSET: dict[str, int] = {
+    "算法": -8, "AI": -8, "大模型": -8, "数据": -4,
+    "后端": 0, "前端": 1, "客户端": 2, "运维": 3, "SRE": 3,
+    "测试": 6, "QA": 6,
 }
 
 # 薪资档位按 7-35k/月 分档 1-5 后，整体 ×0.65 再下调一档（用户 2026-09-17 要求整体再压一档）。
@@ -67,13 +78,15 @@ def _band(mid_k: float) -> int:
     return 5
 
 
-def salary_to_baseline(lower: int, upper: int, tier: str = "不限") -> int:
-    """薪资带（千/月）× 市场档位 → 基准难度档位 1-5（确定性映射）。
+def salary_to_baseline(lower: int, upper: int, tier: str = "不限", role: str = "后端") -> int:
+    """薪资带（千/月）× 市场档位 × 技术岗 → 基准难度档位 1-5（确定性映射）。
 
-    月薪先按 _band 分档（1-5），整体 ×DIFFICULTY_SCALE 四舍五入下调，再叠加档位偏置，
-    最后 clamp 到 1-5。
+    先按角色薪资偏移折算「等效月薪中点」(mid + ROLE_PAY_OFFSET)，再用 _band 分档（1-5），
+    整体 ×DIFFICULTY_SCALE 四舍五入下调，最后叠加档位偏置，clamp 到 1-5。
+    未匹配角色按参考岗(后端, 偏移 0) 处理。
     """
-    scaled = int(_band(_salary_mid(lower, upper)) * DIFFICULTY_SCALE + 0.5)
+    eff_mid = _salary_mid(lower, upper) + ROLE_PAY_OFFSET.get(role, 0)
+    scaled = int(_band(eff_mid) * DIFFICULTY_SCALE + 0.5)
     biased = scaled + TIER_BIAS.get(tier, 0)
     return max(1, min(5, biased))
 
@@ -103,10 +116,10 @@ def direction_hint(
 ) -> str:
     """生成确定性「出题方向」提示，注入面试官 prompt。
 
-    综合：薪资档位（7-35k/月 分档后 ×0.65 再压一档）、市场档位、行情关键词、薄弱点、当前难度。
+    综合：薪资档位（按角色偏移折算后 7-35k/月 分档 ×0.65 再压一档）、市场档位、行情关键词、薄弱点、当前难度。
     level 标签直接由 salary_to_baseline 推导，与难度数字保持一致，避免双重标准。
     """
-    base = salary_to_baseline(lower, upper, tier)
+    base = salary_to_baseline(lower, upper, tier, role)
     level = {1: "实习/入门", 2: "初级", 3: "中级", 4: "高级", 5: "专家/架构"}.get(base, "初级")
 
     ann_lo = _to_annual_w(lower)

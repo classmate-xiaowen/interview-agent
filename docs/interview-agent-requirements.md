@@ -215,6 +215,12 @@
 - 对话采用 SSE 流式输出，提升交互体验。
 - 支持多轮、可重置会话、可切换面试官风格。
 
+**FR-3.5 会话持久化与历史回看（一期补充）**
+- 每次对话自动落库：新建会话生成一条 `ChatSession` 记录；每一轮 user / assistant 消息写入 `ChatMessage`（assistant 额外保存结构化 `InterviewTurn`）。
+- 提供「会话列表」与「会话历史」接口，前端左侧展示历史会话、点击可加载并继续对话。
+- 后端会话状态从数据库按需重建（`InterviewSession.history` 从 `ChatMessage` 恢复并注入后续 LLM 调用），重启后端 / 刷新页面后不丢失上下文。
+- 会话标题默认取面试官风格；首条用户回答后自动改为该回答前若干字，便于在列表中辨识会话主题。
+
 ---
 
 ### 模块四：简历脱敏导入（第二期）
@@ -309,6 +315,27 @@
 | redacted_text | TEXT | 脱敏版 |
 | redactions | JSON | 打码位置与类型数组 |
 
+### 6.5 ChatSession（会话，一期）
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | UUID | 主键 |
+| title | TEXT | 会话标题（默认风格名，首条回答后更新） |
+| interviewer_style | TEXT | 面试官风格（pressure / gentle / deep） |
+| target_company | TEXT | 目标公司（可选） |
+| target_role | TEXT | 目标岗位（可选） |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 最近更新时间 |
+
+### 6.6 ChatMessage（会话消息，一期）
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | INT | 主键（自增） |
+| session_id | UUID | 所属会话（索引） |
+| role | TEXT | user / assistant |
+| content | TEXT | 消息文本 |
+| turn_json | JSON | assistant 的结构化 InterviewTurn（可空） |
+| created_at | DATETIME | 创建时间 |
+
 ---
 
 ## 7. 接口草稿（MVP）
@@ -330,6 +357,8 @@ PUT    /api/profile                      # 更新画像
 POST   /api/chat/session                 # 新建会话（指定风格/目标公司）
 POST   /api/chat/message                 # 发送消息（stream）
 POST   /api/chat/reset                   # 重置会话
+GET    /api/chat/sessions                # 会话列表
+GET    /api/chat/sessions/{id}/messages  # 会话历史消息
 
 # 简历脱敏（二期）
 POST   /api/resume/import                # 导入并标记 PII

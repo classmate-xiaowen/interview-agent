@@ -14,25 +14,27 @@ _client = instructor.from_openai(
 _raw_client = AsyncOpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
 
 
-async def chat_structured(system: str, user: str, response_model: type, model: str | None = None):
+async def chat_structured(system: str, user: str, response_model: type, model: str | None = None, history: list[dict] | None = None):
+    messages = [{"role": "system", "content": system}]
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": user})
     return await _client.chat.completions.create(
         model=model or settings.chat_model,
         response_model=response_model,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
+        messages=messages,
     )
 
 
-async def stream_text(system: str, user: str, model: str | None = None) -> AsyncIterator[str]:
+async def stream_text(system: str, user: str, model: str | None = None, history: list[dict] | None = None) -> AsyncIterator[str]:
     """流式生成纯文本（面试问题 / 总结），逐 chunk 返回，供 SSE 推送。"""
+    messages = [{"role": "system", "content": system}]
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": user})
     stream = await _raw_client.chat.completions.create(
         model=model or settings.chat_model,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
+        messages=messages,
         stream=True,
         temperature=0.7,
     )
