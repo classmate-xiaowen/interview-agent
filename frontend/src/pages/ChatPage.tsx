@@ -362,7 +362,12 @@ export default function ChatPage() {
                           </ReactMarkdown>
                           {isStreamingLast && <span className="caret" />}
                         </div>
-                        {m.turn?.evaluation && <EvaluationCard eval={m.turn.evaluation} />}
+                        {m.turn?.evaluation && (
+                          <EvaluationCard
+                            eval={m.turn.evaluation}
+                            originalAnswer={messages[i - 1]?.role === 'user' ? messages[i - 1].text : ''}
+                          />
+                        )}
                         {m.turn?.references?.length ? (
                           <div className="refs">
                             <span className="refs-label">引用来源：</span>
@@ -448,7 +453,7 @@ export default function ChatPage() {
   )
 }
 
-function EvaluationCard({ eval: ev }: { eval: NonNullable<Msg['turn']>['evaluation'] }) {
+function EvaluationCard({ eval: ev, originalAnswer }: { eval: NonNullable<Msg['turn']>['evaluation']; originalAnswer?: string }) {
   if (!ev) return null
   const level = ev.score >= 80 ? 'good' : ev.score >= 60 ? 'mid' : 'low'
   return (
@@ -459,7 +464,7 @@ function EvaluationCard({ eval: ev }: { eval: NonNullable<Msg['turn']>['evaluati
           <small>/ 100</small>
         </div>
         <span className="eval-tag">
-          {ev.score >= 80 ? '优秀' : ev.score >= 60 ? '良好' : '待改进'}
+          {ev.overall_level ?? (ev.score >= 80 ? '优秀' : ev.score >= 60 ? '良好' : '待改进')}
         </span>
       </div>
       {(ev.covered_points.length > 0 || ev.missing_points.length > 0) && (
@@ -506,6 +511,33 @@ function EvaluationCard({ eval: ev }: { eval: NonNullable<Msg['turn']>['evaluati
               <li key={i}>{s}</li>
             ))}
           </ul>
+        </div>
+      )}
+      {ev.corrected_answer && (
+        <div className="eval-corrected">
+          <b className="t-correction">✎ 纠正后回答</b>
+          <div className="compare">
+            {originalAnswer && (
+              <div className="compare-col">
+                <span className="compare-label">原回答</span>
+                <p className="orig">{originalAnswer}</p>
+              </div>
+            )}
+            <div className="compare-col">
+              <span className="compare-label">纠正版</span>
+              <p className="fixed">{ev.corrected_answer.corrected_text}</p>
+            </div>
+          </div>
+          {ev.corrected_answer.change_points.length > 0 && (
+            <div className="change-points">
+              <span className="compare-label">修改点</span>
+              <ul>
+                {ev.corrected_answer.change_points.map((c, i) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>

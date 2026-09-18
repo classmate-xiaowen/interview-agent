@@ -7,7 +7,7 @@ from app.schemas.interview import (
 )
 from app.schemas.profile import UserProfile
 from app.rag import store
-from app.services import llm, guardrails
+from app.services import llm, guardrails, adaptation
 
 _STYLE_PROMPT: dict[str, str] = {
     "pressure": "你是高压型面试官，追问犀利、要求严谨。",
@@ -50,6 +50,8 @@ class InterviewSession:
         self.profile = profile
         self.state = State.ASKING
         self.questions_asked = 0
+        # 评分/出题难度档（确定性推导，随每轮校准分动态演进）
+        self.diff = adaptation.difficulty_from_years(profile.years)
         self.history: list[dict] = []
 
     def _system(self, json_mode: bool = False) -> str:
@@ -77,7 +79,9 @@ class InterviewSession:
                     f"严格按给定 JSON Schema 回复，必须包含 references（可空数组）。")
         return (f"{_STYLE_PROMPT[self.config.interviewer_style]}\n{ctx}\n"
                 f"仅输出面试问题或点评的纯文本（可用 Markdown 的加粗/列表组织），"
-                f"不要输出 JSON。")
+                f"不要输出 JSON。\n"
+                f"重要：每轮只提【一个】问题，等待候选人回答后再继续提问，"
+                f"绝不要在一次回复中罗列多个问题。")
 
     async def stream_answer(self, user_msg: str, kickoff: bool = False) -> AsyncIterator[dict]:
         """流式驱动一轮对话，逐 token 推送问题文本，末尾推送完整 InterviewTurn。
@@ -95,18 +99,33 @@ class InterviewSession:
             ask_followup = False
             stream = llm.stream_text(
                 self._system(),
-                "请提出第一道面试问题（仅输出问题文本，可用 Markdown 的加粗/列表组织提示）。",
+                "请提出第一道面试问题。只输出【一个】问题本身，"
+                "不要附带多个问题或候选清单，等候选人回答后再继续。可使用 Markdown 的加粗强调。",
                 history=self.history,
             )
         else:
             await guardrails.input_guardrail(user_msg)
             eval_turn = await llm.chat_structured(
                 self._system(json_mode=True),
-                f"EVAL 用户回答：{user_msg}\n请对该回答评分并决定是否需要追问（ask_followup）。",
+                f"EVAL 用户回答：{user_msg}\n"
+                f"请作为国内大厂技术面试官对该回答评分，并决定是否需要追问（ask_followup）。\n"
+                f"评分维度（国内大厂真实 5 维）：①问题拆解与边界确认 ②技术理解深度"
+                f"（真懂还是套方案/背八股，能结合场景讲清 trade-off 才得分）"
+                f"③编码/表达质量（讲清思路即达标，简短但切中要害不扣分）"
+                f"④沟通与协作感 ⑤心智与团队匹配。\n"
+                f"{adaptation.score_calibration(self.diff, self.config.target_company)}\n"
+                f"若回答有改进空间，请在 evaluation.corrected_answer 中给出："
+                f"corrected_text=改写后的完整回答（更准确/规范、贴合 STAR），"
+                f"change_points=相对原回答的具体修改点列表（每条聚焦一处改动，不要重复 suggestions 的笼统建议）；"
+                f"若回答已较好则 corrected_answer 置为 null。",
                 InterviewTurn,
                 history=self.history,
             )
             evaluation = eval_turn.evaluation or Evaluation(score=60)
+            # 国内化分级校准：软拉到难度档目标区间 + 确定性 5 级定性结论（防漂移、偏宽松）
+            evaluation.score = adaptation.calibrate_score(evaluation.score, self.diff)
+            evaluation.overall_level = adaptation.score_to_level(evaluation.score, self.diff)
+            self.diff = adaptation.next_difficulty(self.diff, evaluation.score)[0]
             self.questions_asked += 1
             ask_followup = bool(eval_turn.ask_followup)
             if self.questions_asked >= settings.max_questions:
@@ -124,7 +143,8 @@ class InterviewSession:
                 qtype = "behavioral"
                 stream = llm.stream_text(
                     self._system(),
-                    "请提出下一道新的面试问题（仅输出问题文本，可使用 Markdown 的列表/加粗组织提示）。",
+                    "请提出下一道新的面试问题。同样只输出【一个】问题本身，"
+                    "不要列出多个问题，等待候选人回答后再继续。",
                     history=self.history,
                 )
 

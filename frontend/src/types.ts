@@ -37,13 +37,20 @@ export interface RecordRef {
   snippet: string
 }
 
+export interface CorrectedAnswer {
+  corrected_text: string
+  change_points: string[]
+}
+
 export interface Evaluation {
   score: number
+  overall_level: '优秀' | '良好' | '合格' | '待提升' | '不合格' | null
   covered_points: string[]
   missing_points: string[]
   structure_feedback: string
   expression_feedback: string
   suggestions: string[]
+  corrected_answer: CorrectedAnswer | null
 }
 
 export interface InterviewTurn {

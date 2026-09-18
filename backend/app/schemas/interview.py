@@ -18,13 +18,21 @@ class RecordRef(BaseModel):
     snippet: str
 
 
+class CorrectedAnswer(BaseModel):
+    """相对用户原回答的纠正版本，与评分/建议逻辑解耦，便于对照。"""
+    corrected_text: str = ""          # 改写后的完整回答（可直接照读）
+    change_points: list[str] = []     # 相对原回答的明确修改点（聚焦具体改动，不重复 suggestions）
+
+
 class Evaluation(BaseModel):
     score: int  # 0-100
+    overall_level: Literal["优秀", "良好", "合格", "待提升", "不合格"] | None = None  # 国内 5 级定性结论（确定性推导，与数字分解耦）
     covered_points: list[str] = []
     missing_points: list[str] = []
     structure_feedback: str = ""
     expression_feedback: str = ""
     suggestions: list[str] = []
+    corrected_answer: CorrectedAnswer | None = None
 
 
 class InterviewTurn(BaseModel):

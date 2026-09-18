@@ -148,3 +148,103 @@ def direction_hint(
         parts.append(f"围绕目标岗位「{role.strip()}」组织问题")
 
     return "；".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# 评分校准层（国内化、确定性、可单测）
+#
+# 设计原则：与出题难度档(1-5)绑定，把"达标回答"的预期分锚定到国内大厂实情，
+# 而非让 LLM 用一套固定高标随意压分（原痛点：评分过苛、且因回答简短被扣分）。
+# 数值分经 calibrate_score 软拉+clamp 兜底（防漂移、跨模型一致），
+# 5 级定性结论 score_to_level 由校准后分数确定性推导（不直接信模型的文字判断）。
+# 数据来源：xtechtools《中国大厂技术面试 2026 全攻略》合格线 + 脉脉 5 维评分框架。
+# ---------------------------------------------------------------------------
+from typing import Literal
+
+OverallLevel = Literal["优秀", "良好", "合格", "待提升", "不合格"]
+
+# 国内大厂"达标回答"目标区间 (floor, ceil) 与及格线 (gate)，按难度档分级校准。
+# 关键：级别越高，"达标分"越低——资深岗需难题+系统+深挖才合格，而非每题满分。
+SCORE_BAND: dict[int, tuple[int, int, int]] = {
+    1: (78, 90, 55),  # 实习/入门
+    2: (72, 85, 55),  # 初级
+    3: (65, 80, 50),  # 中级
+    4: (58, 72, 50),  # 高级
+    5: (52, 65, 50),  # 专家/架构
+}
+
+_LEVEL_LABEL = {1: "实习/入门", 2: "初级", 3: "中级", 4: "高级", 5: "专家/架构"}
+
+
+def difficulty_from_years(years: int | None) -> int:
+    """把候选人工作年限映射到难度档 1-5（校招/初级≈2-3，资深≈4-5）。"""
+    if not years or years < 1:
+        return 1
+    if years < 3:
+        return 2
+    if years < 5:
+        return 3
+    if years < 8:
+        return 4
+    return 5
+
+
+def _company_weight(company: str) -> str:
+    """按目标公司微调评分维度权重（国内厂风差异）。"""
+    c = (company or "").lower()
+    if "字节" in c or "bytedance" in c or "douyin" in c:
+        return "该厂偏重算法与代码能力"
+    if "阿里" in c or "alibaba" in c:
+        return "该厂偏重项目深挖与沟通表达"
+    if "腾讯" in c or "tencent" in c:
+        return "该厂偏重工程素养与代码质量"
+    if "美团" in c or "meituan" in c:
+        return "该厂偏重业务落地与成本治理"
+    return ""
+
+
+def score_calibration(diff: int, company: str = "") -> str:
+    """生成注入 EVAL 提示的中文评分校准句（现实偏宽松 + 厂风权重）。"""
+    floor, ceil, _ = SCORE_BAND.get(diff, SCORE_BAND[3])
+    level = _LEVEL_LABEL.get(diff, "中级")
+    parts = [
+        f"本题对标{level}难度（国内大厂合格线）：清晰、正确、切中要害的回答即应得 {floor}-{ceil} 分，"
+        f"勿因回答简短而压分——面试作答本就简短，简洁且答到点上即达标。",
+        "仅当出现事实性错误、明显跑题或完全无思路时才低于及格线。",
+        "八股文式只背概念不讲清 trade-off 会扣分；能结合场景讲清取舍才得分。",
+    ]
+    w = _company_weight(company)
+    if w:
+        parts.append(w + "，评分时可对该维度适当加权。")
+    return "".join(parts)
+
+
+def calibrate_score(raw: int, diff: int) -> int:
+    """把 LLM 原始分软拉到该难度档目标区间并 clamp（防漂移、现实偏宽松）。
+
+    - 原始分低于及格线：认定为确实不足，不强行拉入合格区（设 30 分下限避免过苛）。
+    - 原始分在合格线及以上：向区间中点软拉 60%，再 clamp 到 [floor, ceil]，
+      既保证达标回答落在现实区间，又避免高分被无意义顶到 95+。
+    """
+    raw = max(0, min(100, int(raw)))
+    floor, ceil, gate = SCORE_BAND.get(diff, SCORE_BAND[3])
+    if raw < gate:
+        return max(raw, 30)
+    center = (floor + ceil) / 2
+    pulled = raw + (center - raw) * 0.6
+    return int(max(floor, min(ceil, round(pulled))))
+
+
+def score_to_level(raw: int, diff: int) -> OverallLevel:
+    """由校准后分数映射国内 5 级定性结论（与难度档绑定，分级呈现）。"""
+    floor, ceil, gate = SCORE_BAND.get(diff, SCORE_BAND[3])
+    center = (floor + ceil) / 2
+    if raw >= ceil:
+        return "优秀"
+    if raw >= center:
+        return "良好"
+    if raw >= floor:
+        return "合格"
+    if raw >= gate:
+        return "待提升"
+    return "不合格"
