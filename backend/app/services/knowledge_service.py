@@ -36,9 +36,9 @@ async def _index(record_id: str, text: str, meta: dict):
     if not chunks:
         return
     vecs = await embedder.embed(chunks)
-    docs = [{"id": f"{record_id}#{i}", "text": c,
+    docs = [{"id": f"{record_id}#{i}", "text": c, "embedding": v,
              "metadata": {**meta, "record_id": record_id}}
-            for i, c in enumerate(chunks)]
+            for i, (c, v) in enumerate(zip(chunks, vecs))]
     await store.add_chunks(docs)
 
 
