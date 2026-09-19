@@ -78,6 +78,32 @@ export interface UserProfile {
   target_companies: string[]
   weaknesses: string
   market_context: string
+  resume_text?: string | null
+}
+
+export type PiiCategory = 'name' | 'phone' | 'email' | 'id_card' | 'company' | 'address' | 'social'
+
+export interface PiiItem {
+  category: PiiCategory
+  text: string
+  start: number
+  end: number
+}
+
+export interface MaskSelection {
+  start: number
+  end: number
+  category: PiiCategory
+  action: 'mask' | 'placeholder' | 'ignore'
+}
+
+export interface DetectResponse {
+  items: PiiItem[]
+}
+
+export interface MaskResponse {
+  masked_text: string
+  applied: PiiItem[]
 }
 
 /** 会话列表项（侧栏展示） */

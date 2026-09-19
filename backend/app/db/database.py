@@ -17,6 +17,9 @@ _MISSING_COLUMNS: dict[str, list[tuple[str, str]]] = {
         ("salary", "TEXT"),
         ("rounds", "INTEGER"),
     ],
+    "user_profile": [
+        ("resume_text", "TEXT"),
+    ],
 }
 
 async def _migrate_columns():

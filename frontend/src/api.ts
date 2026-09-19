@@ -1,10 +1,13 @@
 import type {
   ChatHistoryMessage,
   ChatSessionMeta,
+  DetectResponse,
   InterviewConfig,
   InterviewRecordCreate,
   InterviewRecordRead,
   InterviewTurn,
+  MaskResponse,
+  MaskSelection,
   ParsedQuestionBank,
   UserProfile,
 } from './types'
@@ -56,6 +59,20 @@ export const api = {
   },
   getProfile() {
     return fetch(`${BASE}/api/profile`).then((r) => json<UserProfile>(r))
+  },
+  detectPII(text: string) {
+    return fetch(`${BASE}/api/resume/detect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    }).then((r) => json<DetectResponse>(r))
+  },
+  maskResume(text: string, selections: MaskSelection[]) {
+    return fetch(`${BASE}/api/resume/mask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, selections }),
+    }).then((r) => json<MaskResponse>(r))
   },
   updateProfile(data: UserProfile) {
     return fetch(`${BASE}/api/profile`, {

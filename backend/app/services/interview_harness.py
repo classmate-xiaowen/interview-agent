@@ -88,6 +88,10 @@ class InterviewSession:
             ctx += (f"\n面试轮次：第 {c.rounds} 轮。"
                     f"请据此把握本场面试的整体节奏与考察深度——"
                     f"该轮次应聚焦的核心能力请优先考察，不必重复前序轮次已覆盖的通用内容。")
+        # 脱敏版简历（FR-4.4）：让面试官了解候选人背景，提问可关联其经历。
+        if p.resume_text:
+            snippet = p.resume_text[:1500]
+            ctx += f"\n候选人脱敏简历（已打码，用于了解其背景，提问可据此关联经历）：{snippet}"
         if json_mode:
             return (f"{_STYLE_PROMPT[self.config.interviewer_style]}\n{ctx}\n"
                     f"严格按给定 JSON Schema 回复，必须包含 references（可空数组）。")

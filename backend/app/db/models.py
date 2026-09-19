@@ -32,6 +32,7 @@ class UserProfileRow(Base):
     target_companies: Mapped[list] = mapped_column(JSON, default=list)
     weaknesses: Mapped[str] = mapped_column(Text, default="")
     market_context: Mapped[str] = mapped_column(Text, default="")
+    resume_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class ChatSession(Base):
