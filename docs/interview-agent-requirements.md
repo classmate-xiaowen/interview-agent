@@ -3,6 +3,7 @@
 > 版本：v1.0
 > 日期：2026-09-16
 > 状态：需求评审稿（设计方向已确认，待细化实现计划）
+> 最近更新：2026-09-19 —— 明确 Embedding 由 OpenAI 兼容接口生成（默认 `text-embedding-3-small`，1536 维），Chroma 仅负责向量持久化与检索；ChatSession 增加 `target_jd / salary / rounds` 字段，会话初始化可携带岗位 JD / 薪资 / 轮次作为提示词上下文。
 
 ---
 
@@ -27,7 +28,8 @@
 | 模型后端 | OpenAI 兼容 API（可切换 DeepSeek / 通义 / 本地 Ollama） |
 | 表达训练 | 文本评估进 MVP 后，语音分析（ASR）放后期 |
 | 简历脱敏 | 自动标记 + 手动确认打码（可控、误删率低） |
-| 向量存储 | 本地 Chroma（文件型，零运维） |
+| 向量存储 | 本地 Chroma（文件型，零运维），**仅负责向量持久化与余弦检索** |
+| 向量 Embedding | OpenAI 兼容 Embedding API（配置 `embed_model`，默认 `text-embedding-3-small`，1536 维）；向量计算走该接口，不依赖 Chroma 自带默认模型。需配置可用的 `embed_api_key` |
 | 元数据存储 | 本地 SQLite |
 
 ---
@@ -127,6 +129,7 @@
 ### 3.5 RAG 检索架构深化
 
 - **MVP（够用即可）**：Chroma 向量检索 + 元数据过滤（`company` / `department` / `mindset` / `question_type`），切片保留 `record_id` 溯源。
+- **Embedding 来源**：向量由可配置的 OpenAI 兼容 Embedding 接口生成（默认 `text-embedding-3-small`，1536 维），Chroma 只持久化结果向量并做检索；若已有集合的向量维度与当前模型不符，初始化时自动重建集合以避免维度冲突。
 - **生产级演进路径**（参考 `trpevski/RAG-in-Production`、`Stages-of-RAG-for-Production`）：
   - **混合检索（Hybrid）**：BM25 关键词 + 语义向量，RRF 融合，兼顾精确词面与语义；
   - **重排序（Rerank）**：cross-encoder reranker 对 Top-N 重排，提升相关度；
@@ -201,6 +204,7 @@
   2. 用户画像（技能、目标）
   3. 当前就业市场环境（用户可手动填写行业趋势摘要，或预留抓取接口）
   4. 对话历史（追问、递进）
+  5. **本场面试初始化上下文**（会话建立时指定，注入系统提示词）：目标岗位、岗位 JD / 招聘要求、薪资范围、面试轮次。其中「面试轮次」仅作为提示词上下文（告知面试官当前是第几轮、应聚焦的能力维度），**不作为硬性停止条件**，出题数量仍由题量上限控制。
 - 支持选择「面试官风格」（对应心态标签：压力型 / 温和型 / 深挖型）。
 
 **FR-3.3 作答与点评**
@@ -323,6 +327,9 @@
 | interviewer_style | TEXT | 面试官风格（pressure / gentle / deep） |
 | target_company | TEXT | 目标公司（可选） |
 | target_role | TEXT | 目标岗位（可选） |
+| target_jd | TEXT | 岗位 JD / 招聘要求（可选，注入提示词上下文） |
+| salary | TEXT | 薪资范围（可选，注入提示词上下文） |
+| rounds | INT | 面试轮次（可选，提示词上下文，非硬性停止条件） |
 | created_at | DATETIME | 创建时间 |
 | updated_at | DATETIME | 最近更新时间 |
 
@@ -354,7 +361,7 @@ GET    /api/profile                      # 获取画像
 PUT    /api/profile                      # 更新画像
 
 # Agent 对话（SSE 流式）
-POST   /api/chat/session                 # 新建会话（指定风格/目标公司）
+POST   /api/chat/session                 # 新建会话（指定风格/目标公司/目标岗位/JD/薪资/轮次）
 POST   /api/chat/message                 # 发送消息（stream）
 POST   /api/chat/reset                   # 重置会话
 GET    /api/chat/sessions                # 会话列表
