@@ -45,6 +45,7 @@ class ChatSession(Base):
     target_jd: Mapped[str | None] = mapped_column(Text, nullable=True)
     salary: Mapped[str | None] = mapped_column(String, nullable=True)
     rounds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_questions: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.datetime.now().isoformat())
     updated_at: Mapped[str] = mapped_column(String, default=lambda: datetime.datetime.now().isoformat())
 

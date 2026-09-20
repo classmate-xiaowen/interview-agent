@@ -16,6 +16,7 @@ _MISSING_COLUMNS: dict[str, list[tuple[str, str]]] = {
         ("target_jd", "TEXT"),
         ("salary", "TEXT"),
         ("rounds", "INTEGER"),
+        ("max_questions", "INTEGER"),
     ],
     "user_profile": [
         ("resume_text", "TEXT"),

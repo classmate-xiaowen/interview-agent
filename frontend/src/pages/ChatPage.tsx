@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api, streamMessage } from '../api'
-import { App as AntApp, Button, Input, InputNumber, Modal, Popconfirm } from 'antd'
-import { DeleteOutlined, EditOutlined } from '@ant-design/icons'
+import { App as AntApp, Button, Input, InputNumber, Modal, Popconfirm, Select } from 'antd'
+import { DeleteOutlined, EditOutlined, ImportOutlined } from '@ant-design/icons'
 import type {
   ChatHistoryMessage,
   ChatSessionMeta,
   InterviewConfig,
+  InterviewRecordCreate,
   InterviewerStyle,
   InterviewTurn,
 } from '../types'
@@ -23,6 +24,19 @@ const STYLE_LABEL: Record<InterviewerStyle, string> = {
   gentle: '温和型',
   deep: '深挖型',
 }
+
+// 面试官风格 → 知识库心态标签（对齐 KB 固定词表）
+const STYLE_TO_MINDSET: Record<InterviewerStyle, string> = {
+  pressure: '压力型',
+  gentle: '温和引导型',
+  deep: '技术深挖型',
+}
+const MINDSET_OPTIONS = ['压力型', '温和引导型', '技术深挖型', '业务导向型']
+const RESULT_OPTIONS: { value: 'passed' | 'failed' | 'pending'; label: string }[] = [
+  { value: 'passed', label: '通过' },
+  { value: 'failed', label: '未通过' },
+  { value: 'pending', label: '待定' },
+]
 
 function fmtDate(iso: string): string {
   try {
@@ -41,6 +55,7 @@ export default function ChatPage() {
   const [jd, setJd] = useState('')
   const [salary, setSalary] = useState('')
   const [rounds, setRounds] = useState<number | null>(null)
+  const [maxQuestions, setMaxQuestions] = useState<number | null>(null)
   const [setupOpen, setSetupOpen] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Msg[]>([])
@@ -51,6 +66,12 @@ export default function ChatPage() {
   const { message } = AntApp.useApp()
   const [renameTarget, setRenameTarget] = useState<{ id: string; title: string } | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  // 本场已导入知识库的消息索引（v1 仅会话内存态，刷新后重置）
+  const [imported, setImported] = useState<Set<number>>(new Set())
+  // 单条导入弹窗：{ index, question }
+  const [importModal, setImportModal] = useState<{ index: number; question: string } | null>(null)
+  // 批量导入确认弹窗
+  const [batchOpen, setBatchOpen] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const userStoppedRef = useRef(false)
   const endRef = useRef<HTMLDivElement>(null)
@@ -90,6 +111,10 @@ export default function ChatPage() {
       message.warning('面试轮次需在 1-20 之间')
       return
     }
+    if (maxQuestions !== null && (maxQuestions < 1 || maxQuestions > 50)) {
+      message.warning('题目数量需在 1-50 之间')
+      return
+    }
     setSetupOpen(false)
     const cfg: InterviewConfig = {
       interviewer_style: style,
@@ -98,11 +123,13 @@ export default function ChatPage() {
       target_jd: jd || null,
       salary: salary || null,
       rounds: rounds,
+      max_questions: maxQuestions,
     }
     try {
       const r = await api.createSession(cfg)
       setSessionId(r.session_id)
       setMessages([])
+      setImported(new Set())
       await runStream(r.session_id, '', true)
       await loadSessions()
     } catch (e) {
@@ -123,9 +150,11 @@ export default function ChatPage() {
         setJd(s.target_jd || '')
         setSalary(s.salary || '')
         setRounds(s.rounds ?? null)
+        setMaxQuestions((s as any).max_questions ?? null)
       }
       setSessionId(id)
       setMessages(msgs.map((m) => ({ role: m.role, text: m.content, turn: m.turn ?? undefined })))
+      setImported(new Set())
     } catch (e) {
       setError((e as Error).message)
     }
@@ -171,6 +200,7 @@ export default function ChatPage() {
     abortRef.current?.abort()
     setSessionId(null)
     setMessages([])
+    setImported(new Set())
     loadSessions()
   }
 
@@ -236,6 +266,53 @@ export default function ChatPage() {
     setInput('')
     setMessages((m) => [...m, { role: 'user', text: userText }])
     await runStream(sessionId, userText, false)
+  }
+
+  /** 收集本场「未导入的面试题」消息（排除总结回合、已导入项）。 */
+  function pendingQuestions(): { index: number; question: string }[] {
+    const out: { index: number; question: string }[] = []
+    messages.forEach((m, i) => {
+      if (m.role === 'assistant' && m.turn && !m.turn.is_summary && !imported.has(i)) {
+        out.push({ index: i, question: m.turn.question })
+      }
+    })
+    return out
+  }
+
+  /** 单条导入：把弹窗里编辑后的记录写入知识库并标记已导入。 */
+  async function confirmSingleImport(data: InterviewRecordCreate) {
+    if (!importModal) return
+    try {
+      await api.createRecord(data)
+      setImported(new Set([...imported, importModal.index]))
+      message.success('已存入知识库')
+      setImportModal(null)
+    } catch (e) {
+      message.error((e as Error).message)
+    }
+  }
+
+  /** 批量导入：把本场所有未导入的面试题一次性写入知识库，元数据继承本场会话。 */
+  async function doBatchImport() {
+    const pending = pendingQuestions()
+    if (pending.length === 0) {
+      message.info('本场暂无可导入的题目')
+      setBatchOpen(false)
+      return
+    }
+    const items: InterviewRecordCreate[] = pending.map((p) => ({
+      question: p.question,
+      company: targetCompany || null,
+      interviewer_mindset: [STYLE_TO_MINDSET[style]],
+    }))
+    try {
+      const r = await api.importRecords(items)
+      setImported(new Set([...imported, ...pending.map((p) => p.index)]))
+      message.success(`已导入 ${r.imported} 道题到知识库`)
+      setBatchOpen(false)
+    } catch (e) {
+      message.error((e as Error).message)
+    }
   }
 
   const lastIdx = messages.length - 1
@@ -316,9 +393,21 @@ export default function ChatPage() {
           </div>
           <div className="chat-controls">
             {sessionId ? (
-              <button onClick={end} className="danger">
-                结束训练
-              </button>
+              <>
+                <button
+                  onClick={() => setBatchOpen(true)}
+                  className="secondary"
+                  title="把本场所有未导入的面试题一次性存入知识库"
+                >
+                  <ImportOutlined /> 批量导入本场题目
+                  {pendingQuestions().length > 0 && (
+                    <span className="batch-count">{pendingQuestions().length}</span>
+                  )}
+                </button>
+                <button onClick={end} className="danger">
+                  结束训练
+                </button>
+              </>
             ) : (
               <span className="chat-hint">点击左侧「＋ 新建会话」开始模拟训练</span>
             )}
@@ -381,6 +470,20 @@ export default function ChatPage() {
                             ))}
                           </div>
                         ) : null}
+                        {m.turn && !m.turn.is_summary && (
+                          <div className="kb-actions">
+                            {imported.has(i) ? (
+                              <span className="kb-done">✓ 已存入知识库</span>
+                            ) : (
+                              <button
+                                className="kb-import-btn"
+                                onClick={() => setImportModal({ index: i, question: m.turn!.question })}
+                              >
+                                <ImportOutlined /> 存入知识库
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </>
                     ) : (
                       <div className="text">
@@ -520,9 +623,170 @@ export default function ChatPage() {
             style={{ width: '100%' }}
             placeholder="如：1"
           />
+
+          <label>题目数量（可选，默认 12）</label>
+          <InputNumber
+            min={1}
+            max={50}
+            value={maxQuestions}
+            onChange={(v) => setMaxQuestions(v ?? null)}
+            style={{ width: '100%' }}
+            placeholder="如：12"
+          />
         </div>
       </Modal>
+
+      {/* 单条导入：弹窗内可编辑题目与元数据 */}
+      <ImportToKbModal
+        open={!!importModal}
+        initialQuestion={importModal?.question ?? ''}
+        defaultCompany={targetCompany}
+        defaultMindset={STYLE_TO_MINDSET[style]}
+        onCancel={() => setImportModal(null)}
+        onConfirm={confirmSingleImport}
+      />
+
+      {/* 批量导入确认：展示本场待导入题目列表 */}
+      <Modal
+        title="批量导入本场题目"
+        open={batchOpen}
+        onOk={doBatchImport}
+        onCancel={() => setBatchOpen(false)}
+        okText="确认导入"
+        cancelText="取消"
+        destroyOnClose
+        maskClosable={false}
+      >
+        <p>
+          将把本场以下 <b>{pendingQuestions().length}</b> 道面试题存入知识库
+          （公司、心态标签自动继承本场会话，导入后可在知识库页编辑）：
+        </p>
+        <ul className="batch-preview">
+          {pendingQuestions().map((p) => (
+            <li key={p.index}>{p.question}</li>
+          ))}
+        </ul>
+      </Modal>
     </div>
+  )
+}
+
+/**
+ * 单条导入弹窗：预填面试官问题文本，用户可编辑问题、公司、心态标签、难度、结果、备注，
+ * 确认后写入知识库（InterviewRecord）。仅本弹窗可编辑；批量导入走继承元数据、不可逐条编辑。
+ */
+function ImportToKbModal({
+  open,
+  initialQuestion,
+  defaultCompany,
+  defaultMindset,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean
+  initialQuestion: string
+  defaultCompany: string
+  defaultMindset: string
+  onCancel: () => void
+  onConfirm: (data: InterviewRecordCreate) => void
+}) {
+  const [question, setQuestion] = useState('')
+  const [company, setCompany] = useState('')
+  const [mindset, setMindset] = useState<string[]>([])
+  const [difficulty, setDifficulty] = useState<number | null>(null)
+  const [result, setResult] = useState<'' | 'passed' | 'failed' | 'pending'>('')
+  const [note, setNote] = useState('')
+
+  useEffect(() => {
+    if (open) {
+      setQuestion(initialQuestion)
+      setCompany(defaultCompany)
+      setMindset(defaultMindset ? [defaultMindset] : [])
+      setDifficulty(null)
+      setResult('')
+      setNote('')
+    }
+  }, [open, initialQuestion, defaultCompany, defaultMindset])
+
+  function handleOk() {
+    if (!question.trim()) return
+    onConfirm({
+      question: question.trim(),
+      company: company || null,
+      interviewer_mindset: mindset,
+      difficulty: difficulty ?? null,
+      result: result || null,
+      note: note || null,
+    })
+  }
+
+  return (
+    <Modal
+      title="存入知识库"
+      open={open}
+      onOk={handleOk}
+      onCancel={onCancel}
+      okText="确认导入"
+      cancelText="取消"
+      destroyOnClose
+      maskClosable={false}
+    >
+      <div className="setup-form">
+        <label>面试问题 *</label>
+        <Input.TextArea
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          rows={3}
+          maxLength={2000}
+          placeholder="面试官提出的问题"
+        />
+
+        <label>公司（可选）</label>
+        <Input
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+          placeholder="如：字节跳动"
+          maxLength={40}
+        />
+
+        <label>面试官心态标签（可选，可多选）</label>
+        <Select
+          mode="multiple"
+          value={mindset}
+          onChange={setMindset}
+          options={MINDSET_OPTIONS.map((m) => ({ value: m, label: m }))}
+          placeholder="选择心态标签"
+          style={{ width: '100%' }}
+        />
+
+        <label>难度（可选，1-5）</label>
+        <InputNumber
+          min={1}
+          max={5}
+          value={difficulty}
+          onChange={(v) => setDifficulty(v ?? null)}
+          style={{ width: '100%' }}
+        />
+
+        <label>结果（可选）</label>
+        <Select
+          value={result || undefined}
+          onChange={(v) => setResult(v)}
+          options={RESULT_OPTIONS}
+          placeholder="通过 / 未通过 / 待定"
+          style={{ width: '100%' }}
+        />
+
+        <label>备注（可选）</label>
+        <Input.TextArea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          maxLength={500}
+          placeholder="补充背景、来源、易错点等"
+        />
+      </div>
+    </Modal>
   )
 }
 

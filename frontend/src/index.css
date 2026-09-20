@@ -954,6 +954,73 @@ button.ghost:hover { border-color: var(--border-strong); filter: none; backgroun
   white-space: nowrap;
 }
 
+/* 消息气泡底部的「存入知识库」操作区 */
+.kb-actions { margin-top: 10px; display: flex; align-items: center; gap: 8px; }
+.kb-import-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 9px;
+  box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.kb-import-btn:hover { background: rgba(255, 178, 36, 0.1); border-color: var(--accent); }
+.kb-done {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--good, #4ade80);
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  padding: 3px 10px;
+  border-radius: 9px;
+}
+
+/* 批量导入按钮（会话控制区） */
+button.secondary {
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 11px;
+  box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+button.secondary:hover { border-color: var(--accent); background: rgba(255, 178, 36, 0.08); }
+.batch-count {
+  margin-left: 2px;
+  background: var(--accent);
+  color: #1a1205;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+}
+
+/* 批量导入预览列表 */
+.batch-preview {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  max-height: 240px;
+  overflow-y: auto;
+  font-size: 13px;
+  color: var(--muted);
+}
+.batch-preview li { margin: 4px 0; line-height: 1.5; }
+
 /* ----- 悬浮输入区 ----- */
 .composer-zone {
   flex: 0 0 auto;

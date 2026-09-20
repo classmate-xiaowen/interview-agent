@@ -60,6 +60,7 @@ export interface InterviewTurn {
   evaluation: Evaluation | null
   ask_followup: boolean
   followup_question: string | null
+  is_summary?: boolean
 }
 
 export interface InterviewConfig {
@@ -68,6 +69,7 @@ export interface InterviewConfig {
   target_jd?: string | null
   salary?: string | null
   rounds?: number | null
+  max_questions?: number | null
   interviewer_style: InterviewerStyle
 }
 
@@ -116,6 +118,7 @@ export interface ChatSessionMeta {
   target_jd: string | null
   salary: string | null
   rounds: number | null
+  max_questions: number | null
   created_at: string
   updated_at: string
 }

@@ -33,6 +33,7 @@ async def _get_or_load_session(sid: str | None) -> InterviewSession | None:
         salary=row.salary,
         rounds=row.rounds,
         interviewer_style=row.interviewer_style,
+        max_questions=row.max_questions,
     )
     sess = InterviewSession(config, profile)
     msgs = await cs.get_messages(sid)
@@ -116,6 +117,10 @@ async def send_message(payload: dict):
             async for ev in sess.stream_answer(message, kickoff=kickoff):
                 if ev["type"] == "token":
                     yield f"data: {json.dumps({'type': 'token', 'text': ev['text']}, ensure_ascii=False)}\n\n"
+                elif ev["type"] == "error":
+                    # harness 主动返回的友好错误（如护栏拦截），直接转发给前端并结束本轮。
+                    yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': ev.get('message', 'error')}, ensure_ascii=False)}\n\n"
+                    return
                 elif ev["type"] == "turn":
                     turn = ev["turn"]
                     # 一轮成功完成：落库 user（非 kickoff）与 assistant。

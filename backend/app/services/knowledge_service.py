@@ -86,6 +86,21 @@ async def import_records(items: list[InterviewRecordCreate]) -> int:
     return n
 
 
+async def reindex_all():
+    """重建向量索引：遍历全部面试记录，先清理旧分块再重新嵌入（用于 embedding 模型变更后自愈）。"""
+    async with SessionLocal() as s:
+        rows = (await s.execute(sqlalchemy.select(InterviewRecord))).scalars().all()
+    for r in rows:
+        meta = {"company": r.company or "", "department": r.department or "",
+                "mindset": ",".join(r.interviewer_mindset or [])}
+        text = f"{r.question}\n{r.my_answer or ''}\n{r.reference_answer or ''}"
+        try:
+            await store.delete_chunks_by_record(r.id)  # 避免重复分块
+            await _index(r.id, text, meta)
+        except Exception as e:
+            print(f"[reindex] 记录 {r.id} 重建失败: {e}")
+
+
 async def parse_bank(raw_text: str) -> ParsedQuestionBank:
     """调用 LLM 把任意原始文本拆成结构化面试题（仅内容字段）。"""
     text = (raw_text or "").strip()

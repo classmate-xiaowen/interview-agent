@@ -42,6 +42,7 @@ class InterviewTurn(BaseModel):
     evaluation: Optional[Evaluation] = None
     ask_followup: bool = False
     followup_question: Optional[str] = None
+    is_summary: bool = False  # 标记本回合为面试总结/整体点评（非面试题，不应导入知识库）
 
 
 class InterviewConfig(BaseModel):
@@ -51,3 +52,4 @@ class InterviewConfig(BaseModel):
     salary: Optional[str] = None         # 薪资范围（提示词初始化上下文）
     rounds: Optional[int] = None         # 第几轮面试（提示词上下文，非硬性停止条件）
     interviewer_style: Literal["pressure", "gentle", "deep"] = "gentle"
+    max_questions: Optional[int] = None  # 单场题目数量上限（覆盖 config.max_questions 全局默认值）
