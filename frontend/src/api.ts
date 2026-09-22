@@ -1,6 +1,7 @@
 import type {
   ChatHistoryMessage,
   ChatSessionMeta,
+  CostStats,
   DetectResponse,
   InterviewConfig,
   InterviewRecordCreate,
@@ -107,6 +108,9 @@ export const api = {
     return fetch(`${BASE}/api/chat/sessions/${id}`, { method: 'DELETE' }).then((r) =>
       json<{ deleted: boolean }>(r),
     )
+  },
+  getCostStats() {
+    return fetch(`${BASE}/api/chat/cost`).then((r) => json<CostStats>(r))
   },
 }
 

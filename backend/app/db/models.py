@@ -58,3 +58,30 @@ class ChatMessage(Base):
     content: Mapped[str] = mapped_column(Text)
     turn_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # InterviewTurn JSON (assistant only)
     created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.datetime.now().isoformat())
+
+
+class TurnTrace(Base):
+    """每轮面试 turn 的可观测 trace（旁路落库，不影响主对话）。
+
+    用于：点评质量回放/eval、评分漂移审计、token 成本统计（NFR-4/NFR-8）。
+    prompt_version 支持 prompt/评分框架的灰度与回滚对照。
+    """
+    __tablename__ = "turn_traces"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    stage: Mapped[str] = mapped_column(String, default="answer")  # kickoff | answer | summary
+    model: Mapped[str] = mapped_column(String, default="")
+    prompt_version: Mapped[str] = mapped_column(String, default="")
+    system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)  # 截断 512 字
+    user_input: Mapped[str | None] = mapped_column(Text, nullable=True)      # 截断 512 字（不可信输入）
+    retrieved_refs: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: 检索到的知识块
+    raw_llm_output: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: 校准前模型原始输出
+    interview_turn: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: 最终结构化回合
+    score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    level: Mapped[str | None] = mapped_column(String, nullable=True)
+    difficulty: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 评该轮时的难度档（重算校准分所需）
+    tokens_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tokens_out: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String, default="ok")  # ok | rejected | error
+    created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.datetime.now().isoformat())

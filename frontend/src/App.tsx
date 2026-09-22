@@ -3,6 +3,7 @@ import KnowledgePage from './pages/KnowledgePage'
 import ChatPage from './pages/ChatPage'
 import ProfilePage from './pages/ProfilePage'
 import ResumePage from './pages/ResumePage'
+import CostPage from './pages/CostPage'
 import './index.css'
 
 const tabs = [
@@ -10,6 +11,7 @@ const tabs = [
   { to: '/knowledge', label: 'Knowledge' },
   { to: '/resume', label: 'Resume' },
   { to: '/profile', label: 'Profile' },
+  { to: '/cost', label: 'Cost' },
 ]
 
 export default function App() {
@@ -39,6 +41,7 @@ export default function App() {
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/resume" element={<ResumePage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/cost" element={<CostPage />} />
           <Route path="*" element={<Navigate to="/chat" replace />} />
         </Routes>
       </main>

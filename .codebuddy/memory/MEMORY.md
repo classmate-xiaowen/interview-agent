@@ -37,3 +37,11 @@
 - **元数据交互**：弹窗设全局默认值（company/department/mindset/difficulty/result）应用到全部题目；预览表格里每条可单独覆盖。心态标签固定词表：压力型/温和引导型/技术深挖型/业务导向型。
 - **去重**：预览时按 normalize(question)+company 比对现有记录，疑似重复标⚠️且默认不勾选。
 - **实现**：后端 `POST /api/knowledge/parse`（复用 `llm.chat_structured` + `ParsedQuestionBank` Schema，清洗丢弃空题、限 30 条）；前端 `KnowledgePage.tsx` 的「AI 智能导入」卡片 + 弹窗 + 预览表格；保留「快速文本导入」纯文本兜底。心态词表 `MINDSET_OPTIONS` 在 KnowledgePage.tsx 与需求 FR-10 呼应。
+
+## 评分校准分层原则（关键，2026-09-22，已校正为"一致性/防漂移"表述）
+- **核心规则**：LLM 只负责产出"原始分"（唯一不可再生的字段）；`adaptation.calibrate_score` / `score_to_level` / `next_difficulty` 全是**确定性纯函数**，属于"视图/派生"，绝不能当作"存进数据库的事实"。
+- **校准层的本职 = 一致性 / 防漂移，NOT 准确性**：它把 LLM 原始分单调重定标到统一的难度区间，消除跨模型/提示词/时间的系统性刻度漂移，使分数可比、稳定、改自己代码不飘。**它不修正 LLM 原始分的排序误差与噪声**（单调映射原样继承）——绝对准确度需靠更好的 rubric / 参考锚定 / 人工标注（见 eval 设计）。`adaptation.py` 注释已据此改写，勿再写成"锚定现实/更准"。
+- **存储约定**（`interview_harness.py`）：trace 的 `raw_llm_output` 字段必须在**校准前**冻结原始 LLM 输出（raw 分），`score`/`level`/`interview_turn` 列才存校准后结果。已修复：原先第 193 行原地覆盖 `evaluation.score` 后，第 264 行又把已校准的 `eval_turn` 序列化进 `raw_llm_output`，导致 raw 丢失。
+- **含义**：改 `adaptation.py`（校准规则/难度档/等级阈值）后，历史对话分数会过时，但**重算零 token**——只需对所有 trace 的 `raw_llm_output` 重跑 `calibrate_score(raw, diff)` 即可。若 raw 被丢弃则必须重烧 LLM，这是设计红线。
+- **反向风险**：过度重定标（0.6 拉向中心 + clamp）可能把 LLM 能区分的高低分都压平到同一档，损失区分度；调 `SCORE_BAND` 区间宽度是权衡（太宽→一致性差，太窄→压平）。
+- eval replay（`backend/scripts/replay.py` + `backend/tests/test_eval_replay.py`）的 fake 模式即利用此分层：替换 LLM 为确定性替身只注入 raw，下游全跑真实校准逻辑做回归网关（CI 不烧 token）；`--mode live` 才跑真模型验点评质量（监控 LLM raw 漂移/退化这一层残留误差）。

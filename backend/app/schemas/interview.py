@@ -25,8 +25,9 @@ class CorrectedAnswer(BaseModel):
 
 
 class Evaluation(BaseModel):
-    score: int  # 0-100
+    score: int  # 0-100（校准后用于展示；若为模型直接给的整体分则作兜底原始分）
     overall_level: Literal["优秀", "良好", "合格", "待提升", "不合格"] | None = None  # 国内 5 级定性结论（确定性推导，与数字分解耦）
+    dimension_scores: dict[str, int] | None = None  # A2：5 维分项分（boundary/depth/expression/communication/mindset），由系统加权聚合成原始分
     covered_points: list[str] = []
     missing_points: list[str] = []
     structure_feedback: str = ""

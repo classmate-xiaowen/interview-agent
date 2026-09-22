@@ -151,13 +151,16 @@ def direction_hint(
 
 
 # ---------------------------------------------------------------------------
-# 评分校准层（国内化、确定性、可单测）
+# 评分校准层（确定性、可单测、单调）
 #
-# 设计原则：与出题难度档(1-5)绑定，把"达标回答"的预期分锚定到国内大厂实情，
-# 而非让 LLM 用一套固定高标随意压分（原痛点：评分过苛、且因回答简短被扣分）。
-# 数值分经 calibrate_score 软拉+clamp 兜底（防漂移、跨模型一致），
+# 设计原则：与出题难度档(1-5)绑定，把 LLM 原始分「重定标」到统一的难度区间。
+# 目的是【一致性 / 防漂移】——让分数跨模型、跨提示词、跨时间【可比且稳定】，
+# 而【不是】让分数"更准确"。LLM 原始分的排序误差与噪声会被单调映射原样继承，
+# 校准层不修正这些（绝对准确度需靠更好的 rubric / 参考锚定 / 人工标注，见 eval 设计）。
+# 数值分经 calibrate_score 软拉+clamp（消除系统性刻度漂移、跨模型一致）；
 # 5 级定性结论 score_to_level 由校准后分数确定性推导（不直接信模型的文字判断）。
-# 数据来源：xtechtools《中国大厂技术面试 2026 全攻略》合格线 + 脉脉 5 维评分框架。
+# 数据来源：xtechtools《中国大厂技术面试 2026 全攻略》合格线 + 脉脉 5 维评分框架
+#          （用于设定区间梯度，使"达标"在各难度档含义一致、可横向比较，而非判定绝对真实水平）。
 # ---------------------------------------------------------------------------
 from typing import Literal
 
@@ -204,7 +207,7 @@ def _company_weight(company: str) -> str:
 
 
 def score_calibration(diff: int, company: str = "") -> str:
-    """生成注入 EVAL 提示的中文评分校准句（现实偏宽松 + 厂风权重）。"""
+    """生成注入 EVAL 提示的中文评分区间句（统一区间 + 厂风权重，使模型原始分落在合理范围、缩小与校准后的差距）。"""
     floor, ceil, _ = SCORE_BAND.get(diff, SCORE_BAND[3])
     level = _LEVEL_LABEL.get(diff, "中级")
     parts = [
@@ -220,11 +223,14 @@ def score_calibration(diff: int, company: str = "") -> str:
 
 
 def calibrate_score(raw: int, diff: int) -> int:
-    """把 LLM 原始分软拉到该难度档目标区间并 clamp（防漂移、现实偏宽松）。
+    """把 LLM 原始分单调重定标到该难度档统一区间并 clamp（一致性/防漂移，非"更准确"）。
+
+    ⚠️ 本函数不做绝对准确度修正：只消除 LLM 的系统性刻度漂移（跨模型/提示词/时间的整体平移），
+    并保留 LLM 的排序判断与相对区分。原始分本身的排序错误与噪声会被单调映射原样继承。
 
     - 原始分低于及格线：认定为确实不足，不强行拉入合格区（设 30 分下限避免过苛）。
     - 原始分在合格线及以上：向区间中点软拉 60%，再 clamp 到 [floor, ceil]，
-      既保证达标回答落在现实区间，又避免高分被无意义顶到 95+。
+      使不同难度档的"达标"落在各自统一区间内（可比），并避免分数被无意义顶到 95+。
     """
     raw = max(0, min(100, int(raw)))
     floor, ceil, gate = SCORE_BAND.get(diff, SCORE_BAND[3])
@@ -248,3 +254,48 @@ def score_to_level(raw: int, diff: int) -> OverallLevel:
     if raw >= gate:
         return "待提升"
     return "不合格"
+
+
+# ---------------------------------------------------------------------------
+# 维度拆分聚合（A2：比模型整体给一个数更可靠）
+#
+# LLM 对"逐维评分"比"整体给一个数"更稳（减少光环效应）。故 EVAL 让模型先给 5 维分项分，
+# 再由本确定性纯函数加权聚合成单一原始分；之后照常走 calibrate_score 校准。
+# 缺失维度不参与加权（权重归一化到已有维度），避免无谓拉低总分。
+# ---------------------------------------------------------------------------
+EVAL_DIMENSIONS: dict[str, str] = {
+    "boundary": "问题拆解与边界确认",
+    "depth": "技术理解深度（真懂还是套方案/背八股，能结合场景讲清 trade-off 才得分）",
+    "expression": "编码/表达质量（讲清思路即达标，简短但切中要害不扣分）",
+    "communication": "沟通与协作感",
+    "mindset": "心智与团队匹配",
+}
+
+DIMENSION_WEIGHTS: dict[str, float] = {
+    "boundary": 0.20,
+    "depth": 0.30,       # 技术岗最核心：理解深度权重最高
+    "expression": 0.20,
+    "communication": 0.15,
+    "mindset": 0.15,
+}
+
+
+def aggregate_dimensions(dims: dict[str, int] | None) -> int | None:
+    """把 LLM 的 5 维分项分加权聚合成单一原始分（确定性纯函数，不做校准）。
+
+    - dims 为 None 或全缺失 → 返回 None（调用方应退回模型整体分）。
+    - 维度值裁剪到 [0,100]；缺失维度权重归一化到其余维度，避免惩罚。
+    """
+    if not dims:
+        return None
+    acc = 0.0
+    total_w = 0.0
+    for k, w in DIMENSION_WEIGHTS.items():
+        v = dims.get(k)
+        if v is None:
+            continue
+        acc += max(0, min(100, int(v))) * w
+        total_w += w
+    if total_w == 0:
+        return None
+    return int(round(acc / total_w))

@@ -5,7 +5,7 @@
 - 仅做 CRUD，不关心 InterviewSession 的内存状态机。
 """
 from app.db.database import SessionLocal
-from app.db.models import ChatSession, ChatMessage
+from app.db.models import ChatSession, ChatMessage, TurnTrace
 from app.schemas.interview import InterviewConfig
 
 _STYLE_LABEL = {"pressure": "高压型", "gentle": "温和型", "deep": "深挖型"}
@@ -114,3 +114,28 @@ async def delete_session(session_id: str) -> bool:
         await s.delete(sess)
         await s.commit()
     return True
+
+
+async def append_trace(trace: dict[str, object]) -> None:
+    """旁路写入一轮面试 turn 的可观测 trace（失败不影响主对话）。"""
+    row = TurnTrace(
+        session_id=trace.get("session_id"),
+        stage=trace.get("stage", ""),
+        model=trace.get("model", ""),
+        prompt_version=trace.get("prompt_version", ""),
+        system_prompt=trace.get("system_prompt"),
+        user_input=trace.get("user_input"),
+        retrieved_refs=trace.get("retrieved_refs"),
+        raw_llm_output=trace.get("raw_llm_output"),
+        interview_turn=trace.get("interview_turn"),
+        score=trace.get("score"),
+        level=trace.get("level"),
+        difficulty=trace.get("difficulty"),
+        tokens_in=trace.get("tokens_in"),
+        tokens_out=trace.get("tokens_out"),
+        latency_ms=trace.get("latency_ms"),
+        status=trace.get("status", "ok"),
+    )
+    async with SessionLocal() as s:
+        s.add(row)
+        await s.commit()

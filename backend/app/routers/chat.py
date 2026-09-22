@@ -8,6 +8,7 @@ from app.schemas.profile import UserProfile
 from app.services.interview_harness import InterviewSession
 from app.services import profile_service as psv
 from app.services import chat_service as cs
+from app.services import cost_service as cost_svc
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -114,7 +115,7 @@ async def send_message(payload: dict):
 
     async def event_stream():
         try:
-            async for ev in sess.stream_answer(message, kickoff=kickoff):
+            async for ev in sess.stream_answer(message, kickoff=kickoff, session_id=sid):
                 if ev["type"] == "token":
                     yield f"data: {json.dumps({'type': 'token', 'text': ev['text']}, ensure_ascii=False)}\n\n"
                 elif ev["type"] == "error":
@@ -163,3 +164,13 @@ async def delete_session(sid: str):
     removed = await cs.delete_session(sid)
     SESSIONS.pop(sid, None)
     return {"deleted": removed}
+
+
+@router.get("/cost")
+async def cost_stats():
+    """成本聚合：把已落库的 token 折算成多维度成本视图与决策建议（模块 D）。
+
+    维度：总览 / 按模型 / 按阶段(kickoff|answer|summary) / 按天 / Top 会话。
+    成本单价见 app/services/pricing.py（近似 CNY/1M tokens）。
+    """
+    return await cost_svc.aggregate_cost()

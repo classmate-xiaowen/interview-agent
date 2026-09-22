@@ -20,18 +20,29 @@ def _thinking_extra() -> dict:
     return {"extra_body": {"chat_template_kwargs": {"enable_thinking": False}}} if settings.llm_disable_thinking else {}
 
 
+def _estimate_tokens(*texts: str) -> int:
+    """粗略估算 token 数（英文/代码约 4 字符=1 token；中文偏高估，MVP 成本统计够用）。"""
+    return sum(max(0, len(t)) // 4 for t in texts)
+
+
 async def chat_structured(system: str, user: str, response_model: type, model: str | None = None, history: list[dict] | None = None, max_tokens: int = settings.llm_max_tokens):
     messages = [{"role": "system", "content": system}]
     if history:
         messages.extend(history)
     messages.append({"role": "user", "content": user})
-    return await _client.chat.completions.create(
+    obj = await _client.chat.completions.create(
         model=model or settings.chat_model,
         response_model=response_model,
         messages=messages,
         max_tokens=max_tokens,
         **_thinking_extra(),
     )
+    # 返回 (对象, 估算 usage) 以支持 trace 落库与成本统计（NFR-4）。
+    prompt_text = system + user + "".join(m.get("content", "") for m in (history or []))
+    tokens_in = _estimate_tokens(prompt_text)
+    tokens_out = _estimate_tokens(obj.model_dump_json())
+    usage = {"tokens_in": tokens_in, "tokens_out": tokens_out, "total": tokens_in + tokens_out}
+    return obj, usage
 
 
 async def chat_text(system: str, user: str, model: str | None = None, history: list[dict] | None = None) -> str:

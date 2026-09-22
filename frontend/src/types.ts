@@ -130,3 +130,29 @@ export interface ChatHistoryMessage {
   turn: InterviewTurn | null
   created_at: string
 }
+
+/** 成本聚合：单维度一行（模型 / 阶段 / 日期 / 会话） */
+export interface CostBreakdownRow {
+  key: string
+  tokens_in: number
+  tokens_out: number
+  turns: number
+  cost: number
+}
+
+/** 成本聚合总览 */
+export interface CostStats {
+  totals: {
+    tokens_in: number
+    tokens_out: number
+    turns: number
+    sessions: number
+    cost: number
+  }
+  by_model: CostBreakdownRow[]
+  by_stage: CostBreakdownRow[]
+  by_day: CostBreakdownRow[]
+  top_sessions: CostBreakdownRow[]
+  recommendations: string[]
+  currency: string
+}

@@ -1,0 +1,128 @@
+{
+  "total": 12,
+  "passed": 12,
+  "failed": 0,
+  "drifted": 0,
+  "entries": [
+    {
+      "id": "g01",
+      "score": 78,
+      "level": "良好",
+      "followup": true,
+      "refs": 3,
+      "error": null,
+      "issues": [],
+      "baseline_score": 78
+    },
+    {
+      "id": "g02",
+      "score": 72,
+      "level": "合格",
+      "followup": true,
+      "refs": 3,
+      "error": null,
+      "issues": [],
+      "baseline_score": 72
+    },
+    {
+      "id": "g03",
+      "score": 45,
+      "level": "不合格",
+      "followup": false,
+      "refs": 3,
+      "error": null,
+      "issues": [],
+      "baseline_score": 45
+    },
+    {
+      "id": "g04",
+      "score": 81,
+      "level": "良好",
+      "followup": true,
+      "refs": 3,
+      "error": null,
+      "issues": [],
+      "baseline_score": 81
+    },
+    {
+      "id": "g05",
+      "score": 72,
+      "level": "合格",
+      "followup": false,
+      "refs": 3,
+      "error": null,
+      "issues": [],
+      "baseline_score": 72
+    },
+    {
+      "id": "g06",
+      "score": 69,
+      "level": "良好",
+      "followup": true,
+      "refs": 3,
+      "error": null,
+      "issues": [],
+      "baseline_score": 69
+    },
+    {
+      "id": "g07",
+      "score": 40,
+      "level": "不合格",
+      "followup": false,
+      "refs": 3,
+      "error": null,
+      "issues": [],
+      "baseline_score": 40
+    },
+    {
+      "id": "g08",
+      "score": 65,
+      "level": "优秀",
+      "followup": true,
+      "refs": 3,
+      "error": null,
+      "issues": [],
+      "baseline_score": 65
+    },
+    {
+      "id": "g09",
+      "score": 57,
+      "level": "合格",
+      "followup": false,
+      "refs": 3,
+      "error": null,
+      "issues": [],
+      "baseline_score": 57
+    },
+    {
+      "id": "g10",
+      "score": 79,
+      "level": "良好",
+      "followup": true,
+      "refs": 3,
+      "error": null,
+      "issues": [],
+      "baseline_score": 79
+    },
+    {
+      "id": "g11",
+      "score": 50,
+      "level": "不合格",
+      "followup": false,
+      "refs": 3,
+      "error": null,
+      "issues": [],
+      "baseline_score": 50
+    },
+    {
+      "id": "g12",
+      "score": 72,
+      "level": "合格",
+      "followup": true,
+      "refs": 3,
+      "error": null,
+      "issues": [],
+      "baseline_score": 72
+    }
+  ]
+}
