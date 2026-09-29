@@ -16,8 +16,12 @@ _raw_client = AsyncOpenAI(base_url=settings.llm_base_url, api_key=settings.llm_a
 
 def _thinking_extra() -> dict:
     """DeepSeek 等模型默认开启思考链（thinking），会在 JSON 前吐出大量推理 token，
-    挤占结构化输出的预算导致 JSON 被截断。关闭它把 token 全留给有效输出。"""
-    return {"extra_body": {"chat_template_kwargs": {"enable_thinking": False}}} if settings.llm_disable_thinking else {}
+    挤占结构化输出的预算导致 JSON 被截断。关闭它把 token 全留给有效输出。
+    该参数为 DeepSeek 专属，百炼 qwen 等模型不识别 chat_template_kwargs，发送会报错，
+    故按 provider 隔离——只有 DeepSeek 才下发。"""
+    if settings.llm_provider != "deepseek" or not settings.llm_disable_thinking:
+        return {}
+    return {"extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}
 
 
 def _estimate_tokens(*texts: str) -> int:

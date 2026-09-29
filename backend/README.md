@@ -26,9 +26,9 @@ pip install -r requirements.txt
 # 4. 准备环境变量
 cp .env.example .env
 #   然后编辑 .env，至少填入：
-#     LLM_API_KEY=sk-...        # DeepSeek 密钥（对话 / 点评用）
-#     EMBED_API_KEY=sk-...      # OpenAI 密钥（知识库向量化用；DeepSeek 不提供 embedding）
-#     CHAT_MODEL=deepseek-flash # DeepSeek 模型 ID（v4flash 不是合法 ID）
+#     LLM_API_KEY=sk-...        # 阿里云百炼 API-Key（DASHSCOPE_API_KEY，对话 / 点评用）
+#     CHAT_MODEL=qwen-plus      # 百炼模型 ID（qwen-max / qwen-turbo / qwen-long 等）
+#     EMBED_API_KEY=sk-...      # 知识库向量化用的 Embedding 密钥（百炼 text-embedding-v3 或 OpenAI）
 
 # 5. 启动（务必用 python -m uvicorn；裸 uvicorn 可能不在 PATH）
 python -m uvicorn app.main:app --reload --port 8000
@@ -37,7 +37,7 @@ python -m uvicorn app.main:app --reload --port 8000
 curl http://127.0.0.1:8000/health     # 期望 {"status":"ok"}
 ```
 
-> 知识库「新增记录」依赖 Embedding，若 `EMBED_API_KEY` 为空会报错；对话与点评只依赖 `LLM_API_KEY`（DeepSeek）。
+> 知识库「新增记录」依赖 Embedding，若 `EMBED_API_KEY` 为空会报错；对话与点评只依赖 `LLM_API_KEY`（阿里云百炼）。
 > 修改 `.env` 后需重启 uvicorn（`--reload` 仅监听 `.py`，不重载 `.env`）。
 
 ## 接口速览
