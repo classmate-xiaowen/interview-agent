@@ -4,6 +4,7 @@
 > 日期：2026-09-16
 > 状态：需求评审稿（设计方向已确认，待细化实现计划）
 > 最近更新：2026-09-19 —— 明确 Embedding 由 OpenAI 兼容接口生成（默认 `text-embedding-3-small`，1536 维），Chroma 仅负责向量持久化与检索；ChatSession 增加 `target_jd / salary / rounds` 字段，会话初始化可携带岗位 JD / 薪资 / 轮次作为提示词上下文。
+> 2026-09-30 —— 二期「简历脱敏」落地：采用隐私优先的无状态 `detect`/`mask` 接口（原文永不入库），脱敏版存入 `UserProfile.resume_text` 并注入面试上下文；§6.3/§6.4/§7 据此校准（详见对应章节）。
 
 ---
 
@@ -317,15 +318,18 @@
 | target_companies | JSON | 目标公司列表 |
 | weaknesses | TEXT | 薄弱环节 |
 | market_context | TEXT | 就业市场摘要（可选） |
-| resume_redacted | TEXT | 脱敏版简历（二期） |
+| resume_text | TEXT | 脱敏版简历（二期；原文永不入库，仅本地保留） |
 
-### 6.4 Resume（简历，二期）
-| 字段 | 类型 | 说明 |
+### 6.4 简历脱敏（二期，隐私优先的「无状态」设计）
+
+> 与早期草案不同，二期**未单独建 `Resume` 持久化表**，而是采用隐私优先方案，契合 NFR-1「原文仅本地保留、不传原文简历除非用户确认」：
+> - **原文永不离开浏览器、永不入库**：`/api/resume/detect` 与 `/api/resume/mask` 为**无状态**接口，仅接收待处理文本、返回高亮项或脱敏文本，不落盘任何原文。
+> - **脱敏版存入用户画像**：确认打码后的文本写入 `UserProfile.resume_text`（见 6.3），随画像注入面试上下文（FR-4.4）。
+> - **打码位置/类型（`redactions`）** 作为可选元数据由前端在内存中维护，不强制持久化；用户可在脱敏版文本框手动微调以弥补漏检。
+
+| 字段（落地位置） | 类型 | 说明 |
 |---|---|---|
-| id | UUID | 主键 |
-| raw_text | TEXT | 原文（本地） |
-| redacted_text | TEXT | 脱敏版 |
-| redactions | JSON | 打码位置与类型数组 |
+| UserProfile.resume_text | TEXT | 脱敏版简历（注入面试上下文；原文仅本地，永不入库） |
 
 ### 6.5 ChatSession（会话，一期）
 | 字段 | 类型 | 说明 |
@@ -375,9 +379,10 @@ POST   /api/chat/reset                   # 重置会话
 GET    /api/chat/sessions                # 会话列表
 GET    /api/chat/sessions/{id}/messages  # 会话历史消息
 
-# 简历脱敏（二期）
-POST   /api/resume/import                # 导入并标记 PII
-POST   /api/resume/redact                # 应用打码
+# 简历脱敏（二期，无状态：原文不落盘，脱敏版走 profile）
+POST   /api/resume/detect                # 正则标记 PII，返回高亮项（不持久化）
+POST   /api/resume/mask                  # 按用户选择生成脱敏文本（不持久化）
+# 脱敏版落库：PUT /api/profile  （resume_text 字段，随画像注入面试上下文）
 
 # 表达训练（三期/四期）
 POST   /api/training/answer              # 文本评估

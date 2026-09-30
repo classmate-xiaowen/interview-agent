@@ -45,3 +45,13 @@
 - **含义**：改 `adaptation.py`（校准规则/难度档/等级阈值）后，历史对话分数会过时，但**重算零 token**——只需对所有 trace 的 `raw_llm_output` 重跑 `calibrate_score(raw, diff)` 即可。若 raw 被丢弃则必须重烧 LLM，这是设计红线。
 - **反向风险**：过度重定标（0.6 拉向中心 + clamp）可能把 LLM 能区分的高低分都压平到同一档，损失区分度；调 `SCORE_BAND` 区间宽度是权衡（太宽→一致性差，太窄→压平）。
 - eval replay（`backend/scripts/replay.py` + `backend/tests/test_eval_replay.py`）的 fake 模式即利用此分层：替换 LLM 为确定性替身只注入 raw，下游全跑真实校准逻辑做回归网关（CI 不烧 token）；`--mode live` 才跑真模型验点评质量（监控 LLM raw 漂移/退化这一层残留误差）。
+
+## 简历脱敏模块（二期，已实现 2026-09-30）
+- **隐私优先的「无状态」设计**（契合 NFR-1「原文仅本地保留」）：未建独立 `Resume` 持久化表。原文永不离开浏览器、永不入库。
+- 后端 `app/services/pii.py` 用确定性正则识别 7 类疑似 PII：name/phone/email/id_card/company/address/social；`detect_pii` 去重叠（长匹配优先）后按起点升序；`apply_masks` 按用户选择（mask=█块 / placeholder=类型标签 / ignore=跳过）生成脱敏文本。
+- 接口：`POST /api/resume/detect`（仅标记，不落盘）、`POST /api/resume/mask`（仅生成，不落盘）——均为无状态。
+- 脱敏版落库：写入 `UserProfile.resume_text`（字段在 `db/models.py` `UserProfileRow.resume_text` + 迁移 `_MISSING_COLUMNS`；schema `profile.py` 用 `resume_text` 而非文档早期草案的 `resume_redacted`）。
+- FR-4.4 复用：面试时 `interview_harness._system()` 注入 `profile.resume_text[:1500]`；`routers/chat.py` 在新建/重建会话时 `psv.get_profile()` 取全量画像（含 resume_text）传入 harness。
+- 姓名识别三类：①「姓名：X/我叫X/名字X」②「X先生/女士/同学」③行首独立姓名（后接 男/女/求职/电/微/邮/出生/（/(，避免「您好，」误命中）。(?m) 内联标志必须置于正则开头。
+- 前端 `ResumePage.tsx`：粘贴/.txt/.md 上传 → 检测 → 高亮(按类别配色)+图例+逐条 Radio(占位符/打码/忽略) → 生成脱敏版(可手改) → 存 profile；`ProfilePage.tsx` 也展示/可编辑该脱敏简历并注明已注入面试。
+- 需求文档 §6.3/§6.4/§7 已于 2026-09-30 校准为上述无状态设计（早期草案的 `Resume` 表 + `import/redact` 接口已废弃）。

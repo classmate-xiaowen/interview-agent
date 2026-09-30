@@ -123,6 +123,16 @@ export default function ResumePage() {
               </span>
             ) : <span key={i}>{s.text}</span>)}
           </div>
+          <div className="pii-legend">
+            {(["name","phone","email","id_card","company","address","social"] as PiiCategory[]).map((c) => {
+              const n = items.filter((it) => it.category === c).length
+              if (!n) return null
+              return (
+                <span key={c}><i className="pii-swatch" data-cat={c} />
+                  {CAT_LABEL[c]} ×{n}</span>
+              )
+            })}
+          </div>
           <div className="pii-list">
             {items.map((it, i) => (
               <div key={i} className="pii-row">

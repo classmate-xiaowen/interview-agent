@@ -44,6 +44,26 @@ def test_detect_name_heuristic():
     assert names and "张三" in names[0].text
 
 
+def test_detect_name_standalone():
+    # 简历最常见形态：首行即姓名，后接 男/女/求职 等字段分隔符
+    items = pii.detect_pii("张三\n男 | 28岁 | 求职意向：后端工程师")
+    names = [i for i in items if i.category == "name"]
+    assert names and "张三" in names[0].text
+
+
+def test_detect_name_standalone_paren():
+    items = pii.detect_pii("李四（男）\n联系电话：13812345678")
+    names = [i for i in items if i.category == "name"]
+    assert names and "李四" in names[0].text
+
+
+def test_detect_name_no_false_positive_greeting():
+    # 「您好，」不应误判为姓名（姓名后未接简历字段分隔符）
+    items = pii.detect_pii("您好，我是张三，很高兴认识您")
+    names = [i for i in items if i.category == "name"]
+    assert all("您好" not in n.text for n in names)
+
+
 def test_overlap_dedup():
     items = pii.detect_pii("身份证11010519900307123X")
     cats = [i.category for i in items]

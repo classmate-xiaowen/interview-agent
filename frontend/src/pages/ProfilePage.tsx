@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import type { UserProfile } from '../types'
 
 export default function ProfilePage() {
+  const navigate = useNavigate()
   const [p, setP] = useState<UserProfile>({
     skills: '',
     years: 0,
@@ -10,6 +12,7 @@ export default function ProfilePage() {
     target_companies: [],
     weaknesses: '',
     market_context: '',
+    resume_text: '',
   })
   const [companiesStr, setCompaniesStr] = useState('')
   const [msg, setMsg] = useState('')
@@ -93,6 +96,20 @@ export default function ProfilePage() {
               onChange={(e) => setP({ ...p, market_context: e.target.value })}
               rows={3}
             />
+          </div>
+          <div className="field full">
+            <label>脱敏版简历（自动注入模拟面试）</label>
+            <textarea
+              value={p.resume_text || ''}
+              placeholder="在「Resume」页粘贴原文→自动检测→打码生成脱敏版后保存至此；也可直接在此编辑"
+              onChange={(e) => setP({ ...p, resume_text: e.target.value })}
+              rows={6}
+            />
+            <div className="hint" style={{ marginTop: 8 }}>
+              该脱敏简历会在模拟面试时注入面试官上下文，使其更了解你的背景、提问更精准（原文永不入库，仅本地保留）。
+              <button className="ghost" style={{ marginLeft: 10, padding: '4px 12px' }}
+                onClick={() => navigate('/resume')}>前往 Resume 页重新脱敏</button>
+            </div>
           </div>
           <div className="actions">
             <button onClick={save}>保存画像</button>

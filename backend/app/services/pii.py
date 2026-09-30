@@ -14,7 +14,15 @@ _PATTERNS = {
     "company": re.compile(r"[一-龥A-Za-z0-9]+?(?:公司|集团|科技|有限公司|股份公司|企业|银行|大学|学院|研究所|医院|工厂)"),
     "address": re.compile(r"[一-龥]{2,}(?:省|市|区|县|镇|路|街|道|号|栋|幢|单元|室|楼|大厦|广场|园区|巷)"),
     "social": re.compile(r"(?:微信|微信号|WeChat|QQ|qq|抖音|小红书|微博)[：:\s]*[A-Za-z0-9_-]{4,}"),
-    "name": re.compile(r"(?:姓名|我叫|名字)[：:\s]*([一-龥]{2,4})|([一-龥]{2,3})(?:先生|女士|同学)"),
+    # 姓名三类：①「姓名：X / 我叫X / 名字X」②「X先生/女士/同学」③行首独立姓名
+    # （简历最常见形态：首行即姓名，如「张三\n男 | 28岁」或「李四（男）」）。
+    # ③要求姓名后紧接 男/女/求职/电/微/邮/出生/（/( 等简历字段分隔符，避免「您好，」误命中。
+    # (?m) 置于整条正则开头，使 ③ 的 ^ 匹配每行行首（Python 3.11+ 要求内联标志在起始）。
+    "name": re.compile(
+        r"(?m)(?:姓名|我叫|名字)[：:\s]*([一-龥]{2,4})"
+        r"|([一-龥]{2,3})(?:先生|女士|同学)"
+        r"|^([一-龥]{2,3})(?=[\s,，]*(?:男|女|求职|电|微|邮|出生|（|\())"
+    ),
 }
 
 
@@ -24,10 +32,14 @@ def detect_pii(text: str) -> list[PiiItem]:
     for cat, pat in _PATTERNS.items():
         for m in pat.finditer(text):
             if cat == "name":
-                val = m.group(1) or m.group(2)
+                val = m.group(1) or m.group(2) or m.group(3)
                 if not val:
                     continue
-                start, end = (m.span(1) if m.group(1) else m.span(2))
+                start, end = (
+                    m.span(1) if m.group(1)
+                    else m.span(2) if m.group(2)
+                    else m.span(3)
+                )
             else:
                 val = m.group(0)
                 start, end = m.span(0)

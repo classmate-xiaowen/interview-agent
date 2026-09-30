@@ -1113,6 +1113,29 @@ button.secondary:hover { border-color: var(--accent); background: rgba(255, 178,
   border-radius: 3px; padding: 0 2px;
 }
 .pii-hl sup { font-size: 9px; color: #ffb43c; margin-left: 2px; }
+/* 不同 PII 类型用不同颜色，强化「类型标注」可读性 */
+.pii-hl[data-cat="phone"]   { background: rgba(255, 107, 107, .16); border-bottom-color: #ff6b6b; }
+.pii-hl[data-cat="phone"] sup   { color: #ff6b6b; }
+.pii-hl[data-cat="email"]   { background: rgba(90, 169, 255, .16); border-bottom-color: #5aa9ff; }
+.pii-hl[data-cat="email"] sup   { color: #5aa9ff; }
+.pii-hl[data-cat="id_card"] { background: rgba(183, 140, 255, .16); border-bottom-color: #b78cff; }
+.pii-hl[data-cat="id_card"] sup { color: #b78cff; }
+.pii-hl[data-cat="company"] { background: rgba(61, 214, 140, .14); border-bottom-color: #3dd68c; }
+.pii-hl[data-cat="company"] sup { color: #3dd68c; }
+.pii-hl[data-cat="address"] { background: rgba(55, 194, 194, .16); border-bottom-color: #37c2c2; }
+.pii-hl[data-cat="address"] sup { color: #37c2c2; }
+.pii-hl[data-cat="social"]  { background: rgba(255, 157, 60, .16); border-bottom-color: #ff9d3c; }
+.pii-hl[data-cat="social"] sup  { color: #ff9d3c; }
+.pii-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.pii-legend span { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
+.pii-swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.pii-swatch[data-cat="name"]    { background: #ffb43c; }
+.pii-swatch[data-cat="phone"]   { background: #ff6b6b; }
+.pii-swatch[data-cat="email"]   { background: #5aa9ff; }
+.pii-swatch[data-cat="id_card"] { background: #b78cff; }
+.pii-swatch[data-cat="company"] { background: #3dd68c; }
+.pii-swatch[data-cat="address"] { background: #37c2c2; }
+.pii-swatch[data-cat="social"]  { background: #ff9d3c; }
 .pii-list { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
 .pii-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .pii-text { background: var(--panel-3); padding: 2px 6px; border-radius: 6px; font-size: 12.5px; }
